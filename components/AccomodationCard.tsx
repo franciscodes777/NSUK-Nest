@@ -1,4 +1,4 @@
-export default function AccommodationCard({
+export default function AccomodationCard({
   name,
   location,
   price
