@@ -259,7 +259,7 @@ export default function AddPropertyPage() {
                   name="propertyName"
                   placeholder="e.g. Princess Sarah Lodge"
                   required
-                  className="w-full border border-slate-300 rounded-lg px-4 py-3 outline-none focus:border-[#075e3b]"
+                  className="w-full text-black border border-slate-300 rounded-lg px-4 py-3 outline-none focus:border-[#075e3b]"
                 />
 
               </div>
@@ -280,7 +280,7 @@ export default function AddPropertyPage() {
                     name="location"
                     placeholder="e.g. Keffi"
                     required
-                    className="w-full border border-slate-300 rounded-lg pl-11 pr-4 py-3 outline-none focus:border-[#075e3b]"
+                    className="w-full border text-black border-slate-300 rounded-lg pl-11 pr-4 py-3 outline-none focus:border-[#075e3b]"
                   />
 
                 </div>
