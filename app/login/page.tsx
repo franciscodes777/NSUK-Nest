@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { signIn } from "@/auth";
+import {loginWithGoogle,loginWithGitHub,} from "@/app/actions/auth";
 import { FcGoogle } from "react-icons/fc";
 import { FaGithub } from "react-icons/fa";
 
@@ -22,11 +22,8 @@ export default function LoginPage() {
 
 
         {/* Google */}
-        <form
-          action={async () => {
-            "use server";
-            await signIn("google", { redirectTo: "/" });
-          }}
+        <form 
+        action={loginWithGoogle}
           className="mb-3"
         >
           <button
@@ -41,10 +38,7 @@ export default function LoginPage() {
 
         {/* GitHub */}
         <form
-          action={async () => {
-            "use server";
-            await signIn("github", { redirectTo: "/" });
-          }}
+         action={loginWithGitHub}
           className="mb-6"
         >
           <button

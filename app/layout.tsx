@@ -1,25 +1,26 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, Playfair_Display, Inter, Great_Vibes, Sansita_Swashed, Lobster  } from "next/font/google";
+import {
+  Geist,
+  Geist_Mono,
+  Playfair_Display,
+  Inter,
+  Great_Vibes,
+  Lobster,
+} from "next/font/google";
 import "./globals.css";
-import Navbar from "@/components/Navbar";
-import Footer from "@/components/Footer";
+import LayoutContent from "@/components/LayoutContent";
 import Providers from "@/components/Providers";
 
-// const sansitaSwashed = Sansita_Swashed ({
-//   subsets: ["latin"],
-//   weight: ["400","700"]
-// });
-const lobster = Lobster ({
+const lobster = Lobster({
   subsets: ["latin"],
-  weight : "400",
-  variable:"--font-lobster"
+  weight: "400",
+  variable: "--font-lobster",
 });
 
-
-const greatVibes = Great_Vibes ({
+const greatVibes = Great_Vibes({
   subsets: ["latin"],
-  weight : "400",
-  variable:"--font-great-vibes",
+  weight: "400",
+  variable: "--font-great-vibes",
 });
 
 const inter = Inter({
@@ -48,7 +49,8 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({
-   children }: LayoutProps<"/">) {
+  children,
+}: LayoutProps<"/">) {
   return (
     <html
       lang="en"
@@ -56,12 +58,11 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col">
         <Providers>
-        <Navbar/>
-        {children}
-        <Footer/>
+          <LayoutContent>
+            {children}
+            </LayoutContent>
         </Providers>
-        
-        </body>
+      </body>
     </html>
   );
-} 
+}

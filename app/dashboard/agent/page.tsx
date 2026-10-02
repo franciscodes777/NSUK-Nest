@@ -1,114 +1,65 @@
-import React from "react"
+
 import Link from "next/link"
+import { redirect } from "next/navigation"
+import { auth } from "@/auth"
+import { adminDb } from "@/lib/firebaseAdmin"
+import { PiHandWavingDuotone } from "react-icons/pi"
 import {
-  FaHome,
   FaPlus,
   FaBuilding,
-  FaClipboardList,
   FaEnvelope,
   FaUser,
-  FaBell,
   FaCheckCircle,
   FaClock,
-  FaTimesCircle,
   FaArrowRight,
 } from "react-icons/fa"
+import UserMenu from "@/components/UserMenu"
 
-export default function AgentDashboard() {
+type Property = {
+  id: string
+  name?: string
+  location?: string
+  price?: number | string
+  status?: string
+}
+
+export default async function AgentDashboard() {
+  const session = await auth()
+
+  if (!session?.user?.email) {
+    redirect("/login")
+  }
+
+  if (session.user.role !== "agent") {
+    redirect("/dashboard/student")
+  }
+
+  const propertySnapshot = await adminDb
+    .collection("properties")
+    .where("agentEmail", "==", session.user.email)
+    .get()
+
+  const properties: Property[] = propertySnapshot.docs.map((doc) => ({
+    id: doc.id,
+    ...(doc.data() as Omit<Property, "id">),
+  }))
+
+  const totalProperties = properties.length
+
+  const approvedProperties = properties.filter(
+    (property) => property.status === "approved"
+  ).length
+
+  const pendingProperties = properties.filter(
+    (property) => property.status === "pending"
+  ).length
+
+  const rejectedProperties = properties.filter(
+    (property) => property.status === "rejected"
+  ).length
+
   return (
-    <main className="min-h-screen bg-slate-50 flex">
-
-      {/* SIDEBAR */}
-      <aside className="hidden lg:flex w-64 bg-white border-r border-slate-200 flex-col">
-
-        {/* LOGO */}
-        <div className="h-20 flex items-center px-6 border-b border-slate-100">
-          <Link
-            href="/"
-            className="text-2xl font-bold text-[#075e3b]"
-          >
-            NSUK Nest
-          </Link>
-        </div>
-
-        {/* NAVIGATION */}
-        <nav className="flex-1 p-4 space-y-2">
-
-          <Link
-            href="/dashboard/agent"
-            className="flex items-center gap-3 px-4 py-3 rounded-xl bg-[#075e3b]/10 text-[#075e3b] font-semibold"
-          >
-            <FaHome />
-            Dashboard
-          </Link>
-
-          <Link
-            href="#"
-            className="flex items-center gap-3 px-4 py-3 rounded-xl text-slate-600 hover:bg-slate-50 transition"
-          >
-            <FaBuilding />
-            My Properties
-          </Link>
-
-          <Link
-            href="#"
-            className="flex items-center gap-3 px-4 py-3 rounded-xl text-slate-600 hover:bg-slate-50 transition"
-          >
-            <FaPlus />
-            Add Property
-          </Link>
-
-          <Link
-            href="#"
-            className="flex items-center gap-3 px-4 py-3 rounded-xl text-slate-600 hover:bg-slate-50 transition"
-          >
-            <FaEnvelope />
-            Enquiries
-          </Link>
-
-          <Link
-            href="#"
-            className="flex items-center gap-3 px-4 py-3 rounded-xl text-slate-600 hover:bg-slate-50 transition"
-          >
-            <FaClipboardList />
-            Payments
-          </Link>
-
-          <Link
-            href="#"
-            className="flex items-center gap-3 px-4 py-3 rounded-xl text-slate-600 hover:bg-slate-50 transition"
-          >
-            <FaUser />
-            Profile
-          </Link>
-
-        </nav>
-
-        {/* HELP */}
-        <div className="p-4 border-t border-slate-100">
-
-          <div className="bg-[#075e3b]/5 rounded-xl p-4">
-
-            <p className="text-sm font-semibold text-slate-800">
-              Need help?
-            </p>
-
-            <p className="text-xs text-slate-500 mt-1">
-              Contact the NSUK Nest support team.
-            </p>
-
-            <Link
-              href="/Contact"
-              className="text-xs font-semibold text-[#075e3b] mt-3 inline-block"
-            >
-              Contact Support →
-            </Link>
-
-          </div>
-
-        </div>
-
-      </aside>
+    <main className="min-h-screen bg-slate-50 flex -mt-1.5">
 
       {/* MAIN CONTENT */}
       <section className="flex-1">
@@ -122,25 +73,14 @@ export default function AgentDashboard() {
               Agent / Owner Dashboard
             </p>
 
-            <h1 className="text-xl font-bold text-slate-900">
-              Welcome back 👋
+            <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+              Welcome back
+              <PiHandWavingDuotone className="text-[#075e3b] text-lg" />
             </h1>
 
           </div>
 
-          <div className="flex items-center gap-5">
-
-            <button className="relative text-slate-500 hover:text-[#075e3b]">
-              <FaBell className="text-lg" />
-
-              <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full" />
-            </button>
-
-            <div className="w-10 h-10 rounded-full bg-[#075e3b]/10 flex items-center justify-center text-[#075e3b] font-bold">
-              A
-            </div>
-
-          </div>
+          <UserMenu />
 
         </header>
 
@@ -163,7 +103,7 @@ export default function AgentDashboard() {
             </div>
 
             <Link
-              href="#"
+              href="/dashboard/agent/properties/new"
               className="inline-flex items-center justify-center gap-2 bg-[#075e3b] text-white px-5 py-3 rounded-xl font-semibold text-sm hover:bg-[#064d31] transition"
             >
               <FaPlus />
@@ -175,6 +115,7 @@ export default function AgentDashboard() {
           {/* STATS */}
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5 mt-8">
 
+            {/* TOTAL */}
             <div className="bg-white border border-slate-200 rounded-2xl p-5">
 
               <div className="flex items-center justify-between">
@@ -188,11 +129,12 @@ export default function AgentDashboard() {
               </div>
 
               <p className="text-3xl font-bold text-slate-900 mt-3">
-                0
+                {totalProperties}
               </p>
 
             </div>
 
+            {/* APPROVED */}
             <div className="bg-white border border-slate-200 rounded-2xl p-5">
 
               <div className="flex items-center justify-between">
@@ -206,11 +148,12 @@ export default function AgentDashboard() {
               </div>
 
               <p className="text-3xl font-bold text-slate-900 mt-3">
-                0
+                {approvedProperties}
               </p>
 
             </div>
 
+            {/* PENDING */}
             <div className="bg-white border border-slate-200 rounded-2xl p-5">
 
               <div className="flex items-center justify-between">
@@ -224,11 +167,12 @@ export default function AgentDashboard() {
               </div>
 
               <p className="text-3xl font-bold text-slate-900 mt-3">
-                0
+                {pendingProperties}
               </p>
 
             </div>
 
+            {/* ENQUIRIES */}
             <div className="bg-white border border-slate-200 rounded-2xl p-5">
 
               <div className="flex items-center justify-between">
@@ -267,8 +211,8 @@ export default function AgentDashboard() {
               </div>
 
               <Link
-                href="#"
-                className="hidden sm:flex items-center gap-2 text-sm font-semibold text-[#075e3b]"
+                href="/dashboard/agent/properties"
+                className="hidden sm:flex items-center gap-2 text-sm font-semibold text-[#075e3b] hover:text-[#064d31]"
               >
                 View all
                 <FaArrowRight className="text-xs" />
@@ -313,43 +257,101 @@ export default function AgentDashboard() {
 
                   <tbody>
 
-                    {/* EMPTY STATE */}
+                    {properties.length === 0 ? (
 
-                    <tr>
+                      <tr>
 
-                      <td
-                        colSpan={5}
-                        className="px-6 py-16 text-center"
-                      >
+                        <td
+                          colSpan={5}
+                          className="px-6 py-16 text-center"
+                        >
 
-                        <div className="flex flex-col items-center">
+                          <div className="flex flex-col items-center">
 
-                          <div className="w-14 h-14 rounded-full bg-[#075e3b]/10 flex items-center justify-center text-[#075e3b]">
-                            <FaBuilding className="text-xl" />
+                            <div className="w-14 h-14 rounded-full bg-[#075e3b]/10 flex items-center justify-center text-[#075e3b]">
+                              <FaBuilding className="text-xl" />
+                            </div>
+
+                            <h3 className="font-bold text-slate-800 mt-4">
+                              No properties yet
+                            </h3>
+
+                            <p className="text-sm text-slate-500 mt-1 max-w-sm">
+                              You haven't added any accommodation listings.
+                              Add your first property to get started.
+                            </p>
+
+                            <Link
+                              href="/dashboard/agent/properties/new"
+                              className="mt-5 inline-flex items-center gap-2 bg-[#075e3b] text-white px-5 py-2.5 rounded-lg font-semibold text-sm hover:bg-[#064d31] transition"
+                            >
+                              <FaPlus />
+                              Add Property
+                            </Link>
+
                           </div>
 
-                          <h3 className="font-bold text-slate-800 mt-4">
-                            No properties yet
-                          </h3>
+                        </td>
 
-                          <p className="text-sm text-slate-500 mt-1 max-w-sm">
-                            You haven't added any accommodation listings.
-                            Add your first property to get started.
-                          </p>
+                      </tr>
 
-                          <Link
-                            href="#"
-                            className="mt-5 inline-flex items-center gap-2 bg-[#075e3b] text-white px-5 py-2.5 rounded-lg font-semibold text-sm"
-                          >
-                            <FaPlus />
-                            Add Property
-                          </Link>
+                    ) : (
 
-                        </div>
+                      properties.map((property) => (
 
-                      </td>
+                        <tr
+                          key={property.id}
+                          className="border-b border-slate-100 last:border-b-0"
+                        >
 
-                    </tr>
+                          <td className="px-6 py-4">
+
+                            <div className="font-semibold text-slate-900">
+                              {property.name || "Untitled Property"}
+                            </div>
+
+                          </td>
+
+                          <td className="px-6 py-4 text-slate-500">
+                            {property.location || "Not provided"}
+                          </td>
+
+                          <td className="px-6 py-4 font-semibold text-slate-900">
+                            ₦{Number(property.price || 0).toLocaleString()}
+                          </td>
+
+                          <td className="px-6 py-4">
+
+                            <span
+                              className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold capitalize ${
+                                property.status === "approved"
+                                  ? "bg-green-100 text-green-700"
+                                  : property.status === "rejected"
+                                  ? "bg-red-100 text-red-700"
+                                  : "bg-yellow-100 text-yellow-700"
+                              }`}
+                            >
+                              {property.status || "pending"}
+                            </span>
+
+                          </td>
+
+                          <td className="px-6 py-4 text-right">
+
+                            <Link
+                              href={`/dashboard/agent/properties/${property.id}`}
+                              className="inline-flex items-center justify-center rounded-lg border border-green-600 px-4 py-2 font-medium text-green-600 transition hover:bg-green-50"
+                            >
+                              View
+                            </Link>
+
+                          </td>
+
+                        </tr>
+
+                      ))
+
+                    )}
 
                   </tbody>
 
@@ -371,7 +373,7 @@ export default function AgentDashboard() {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 mt-5">
 
               <Link
-                href="#"
+                href="/dashboard/agent/properties/new"
                 className="bg-white border border-slate-200 rounded-2xl p-5 hover:border-[#075e3b] transition"
               >
 
@@ -388,24 +390,24 @@ export default function AgentDashboard() {
               </Link>
 
               <Link
-                href="#"
+                href="/dashboard/agent/properties"
                 className="bg-white border border-slate-200 rounded-2xl p-5 hover:border-[#075e3b] transition"
               >
 
-                <FaEnvelope className="text-[#075e3b] text-xl" />
+                <FaBuilding className="text-[#075e3b] text-xl" />
 
                 <h3 className="font-bold text-slate-900 mt-4">
-                  View Enquiries
+                  Manage Properties
                 </h3>
 
                 <p className="text-sm text-slate-500 mt-1">
-                  See messages from interested students.
+                  View and manage all your property listings.
                 </p>
 
               </Link>
 
               <Link
-                href="#"
+                href="/profile"
                 className="bg-white border border-slate-200 rounded-2xl p-5 hover:border-[#075e3b] transition"
               >
 

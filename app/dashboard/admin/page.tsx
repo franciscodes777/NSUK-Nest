@@ -1,124 +1,22 @@
 import React from "react"
 import Link from "next/link"
 import {
-  FaHome,
   FaUsers,
   FaUserGraduate,
   FaBuilding,
   FaCheckCircle,
-  FaClock,
-  FaTimesCircle,
   FaMoneyBillWave,
-  FaBell,
   FaUserShield,
   FaChartBar,
   FaCog,
   FaArrowRight,
+  FaHandPaper,
 } from "react-icons/fa"
+import UserMenu from "@/components/UserMenu"
 
 export default function AdminDashboard() {
   return (
     <main className="min-h-screen bg-slate-50 flex">
-
-      {/* SIDEBAR */}
-      <aside className="hidden lg:flex w-64 bg-white border-r border-slate-200 flex-col">
-
-        {/* LOGO */}
-        <div className="h-20 flex items-center px-6 border-b border-slate-100">
-          <Link
-            href="/"
-            className="text-2xl font-bold text-[#075e3b]"
-          >
-            NSUK Nest
-          </Link>
-        </div>
-
-        {/* ADMIN LABEL */}
-        <div className="px-5 pt-5">
-          <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-400">
-            <FaUserShield />
-            Administrator
-          </div>
-        </div>
-
-        {/* NAVIGATION */}
-        <nav className="flex-1 p-4 space-y-2 mt-2">
-
-          <Link
-            href="/dashboard/admin"
-            className="flex items-center gap-3 px-4 py-3 rounded-xl bg-[#075e3b]/10 text-[#075e3b] font-semibold"
-          >
-            <FaHome />
-            Overview
-          </Link>
-
-          <Link
-            href="#"
-            className="flex items-center gap-3 px-4 py-3 rounded-xl text-slate-600 hover:bg-slate-50 transition"
-          >
-            <FaUsers />
-            Users
-          </Link>
-
-          <Link
-            href="#"
-            className="flex items-center gap-3 px-4 py-3 rounded-xl text-slate-600 hover:bg-slate-50 transition"
-          >
-            <FaUserGraduate />
-            Students
-          </Link>
-
-          <Link
-            href="#"
-            className="flex items-center gap-3 px-4 py-3 rounded-xl text-slate-600 hover:bg-slate-50 transition"
-          >
-            <FaUserShield />
-            Agents / Owners
-          </Link>
-
-          <Link
-            href="#"
-            className="flex items-center gap-3 px-4 py-3 rounded-xl text-slate-600 hover:bg-slate-50 transition"
-          >
-            <FaBuilding />
-            Properties
-          </Link>
-
-          <Link
-            href="#"
-            className="flex items-center gap-3 px-4 py-3 rounded-xl text-slate-600 hover:bg-slate-50 transition"
-          >
-            <FaClock />
-            Pending Approvals
-          </Link>
-
-          <Link
-            href="#"
-            className="flex items-center gap-3 px-4 py-3 rounded-xl text-slate-600 hover:bg-slate-50 transition"
-          >
-            <FaMoneyBillWave />
-            Payments
-          </Link>
-
-          <Link
-            href="#"
-            className="flex items-center gap-3 px-4 py-3 rounded-xl text-slate-600 hover:bg-slate-50 transition"
-          >
-            <FaChartBar />
-            Reports
-          </Link>
-
-          <Link
-            href="#"
-            className="flex items-center gap-3 px-4 py-3 rounded-xl text-slate-600 hover:bg-slate-50 transition"
-          >
-            <FaCog />
-            Settings
-          </Link>
-
-        </nav>
-
-      </aside>
 
       {/* MAIN CONTENT */}
       <section className="flex-1">
@@ -127,6 +25,7 @@ export default function AdminDashboard() {
         <header className="h-20 bg-white border-b border-slate-200 flex items-center justify-between px-6 lg:px-10">
 
           <div>
+
             <p className="text-sm text-slate-500">
               Administrator
             </p>
@@ -134,21 +33,10 @@ export default function AdminDashboard() {
             <h1 className="text-xl font-bold text-slate-900">
               Dashboard Overview
             </h1>
-          </div>
-
-          <div className="flex items-center gap-5">
-
-            <button className="relative text-slate-500 hover:text-[#075e3b]">
-              <FaBell className="text-lg" />
-
-              <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full" />
-            </button>
-
-            <div className="w-10 h-10 rounded-full bg-[#075e3b] flex items-center justify-center text-white font-bold">
-              A
-            </div>
 
           </div>
+
+          <UserMenu />
 
         </header>
 
@@ -158,8 +46,9 @@ export default function AdminDashboard() {
           {/* WELCOME */}
           <div className="mb-8">
 
-            <h2 className="text-2xl font-bold text-slate-900">
-              Welcome, Admin 👋
+            <h2 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
+              Welcome, Admin
+              <FaHandPaper className="text-[#075e3b] text-lg" />
             </h2>
 
             <p className="text-slate-500 mt-1">

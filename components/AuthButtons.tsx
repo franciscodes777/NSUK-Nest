@@ -1,16 +1,20 @@
- "use client";
+"use client";
 
 import { useState } from "react";
 import { FcGoogle } from "react-icons/fc";
 import { FaGithub } from "react-icons/fa";
 import { FaUserGraduate, FaKey } from "react-icons/fa";
+import {
+  signInWithGoogle,
+  signInWithGitHub,
+} from "@/app/actions/auth";
 
 export default function AuthButtons() {
   const [role, setRole] = useState("student");
 
   return (
     <div className="space-y-6">
-      
+
       {/* Account Type */}
       <div className="space-y-2">
         <label className="block text-sm font-semibold text-slate-700">
@@ -81,27 +85,41 @@ export default function AuthButtons() {
       </div>
 
       {/* Google */}
-      <button
-        type="button"
-        className="w-full flex items-center justify-center gap-3 py-3 px-4 border border-slate-200 rounded-lg text-slate-700 font-semibold text-sm hover:bg-slate-50 transition-all duration-200 shadow-sm"
-      >
-        <FcGoogle className="text-xl" />
-        Sign up with Google
-      </button>
+      <form action={signInWithGoogle}>
+        <input
+          type="hidden"
+          name="role"
+          value={role}
+        />
+
+        <button
+          type="submit"
+          className="w-full flex items-center justify-center gap-3 py-3 px-4 border border-slate-200 rounded-lg text-slate-700 font-semibold text-sm hover:bg-slate-50 transition-all duration-200 shadow-sm"
+        >
+          <FcGoogle className="text-xl" />
+          Sign up with Google
+        </button>
+      </form>
 
       {/* GitHub */}
-      <button
-        type="button"
-        className="w-full flex items-center justify-center gap-3 py-3 px-4 border border-slate-200 rounded-lg text-slate-700 font-semibold text-sm hover:bg-slate-50 transition-all duration-200 shadow-sm"
-      >
-        <FaGithub className="text-xl" />
-        Sign up with GitHub
-      </button>
+      <form action={signInWithGitHub}>
+        <input
+          type="hidden"
+          name="role"
+          value={role}
+        />
 
-      {/* Temporary check */}
+        <button
+          type="submit"
+          className="w-full flex items-center justify-center gap-3 py-3 px-4 border border-slate-200 rounded-lg text-slate-700 font-semibold text-sm hover:bg-slate-50 transition-all duration-200 shadow-sm"
+        >
+          <FaGithub className="text-xl" />
+          Sign up with GitHub
+        </button>
+      </form>
       <p className="text-center text-xs text-slate-400">
-        Selected role: {role}
-      </p>
+  Selected role: {role}
+</p>
 
     </div>
   );
