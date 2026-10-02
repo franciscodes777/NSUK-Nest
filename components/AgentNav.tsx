@@ -47,7 +47,7 @@ export default function AgentNav() {
     },
     {
       label: "Profile",
-      href: "#",
+      href: "dashboard/agent/profile",
       icon: FaUser,
     },
   ]
