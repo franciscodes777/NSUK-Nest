@@ -36,7 +36,7 @@ export default function StudentNav() {
     },
     {
       label: "Profile",
-      href: "#",
+      href: "/dashboard/student/profile",
       icon: FaUser,
     },
   ]
