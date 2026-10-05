@@ -3,7 +3,7 @@ import { adminDb } from "@/lib/firebaseAdmin";
 import { redirect } from "next/navigation";
 import UserMenu from "@/components/UserMenu";
 import ProfileImageUpload from "@/components/ProfileImageUpload";
-import { FaBuilding, FaCheckCircle, FaClock, FaHome } from "react-icons/fa";
+import { FaBuilding, FaCheckCircle, FaClock, FaHome, FaArrowLeft } from "react-icons/fa";
 import { revalidatePath } from "next/cache";
 
 async function updateAgentProfile(formData: FormData): Promise<void> {
@@ -149,9 +149,10 @@ Manage your account and profile information </p> </div>
     <div className="mb-6">
       <a
         href="/dashboard/agent"
-        className="text-sm font-medium text-[#075e3b] hover:underline"
+        className="text-sm font-medium text-[#075e3b] hover:underline flex gap-2 items-center font-semibold"
       >
-        ← Back to Dashboard
+         <FaArrowLeft />
+        Back to Dashboard
       </a>
     </div>
 

@@ -8,6 +8,7 @@ FaGraduationCap,
 FaHeart,
 FaUserGraduate,
 FaCalendarAlt,
+FaArrowLeft,
 } from "react-icons/fa";
 import { revalidatePath } from "next/cache";
 
@@ -147,7 +148,7 @@ if (!Number.isNaN(createdAt.getTime())) {
 return ( <div className="min-h-screen bg-gray-50"> <header className="sticky top-0 z-40 border-b border-gray-200 bg-white"> <div className="flex h-20 items-center justify-between px-6 lg:px-10"> <div> <h1 className="text-xl font-bold text-gray-900">
 Student Profile </h1>
 
-```
+
         <p className="text-sm text-gray-500">
           Manage your account and profile information
         </p>
@@ -161,9 +162,10 @@ Student Profile </h1>
     <div className="mb-6">
       <a
         href="/dashboard/student"
-        className="text-sm font-medium text-[#075e3b] hover:underline"
+        className="text-sm font-medium text-[#075e3b] hover:underline flex items-center gap-2 font-semibold"
       >
-        ← Back to Dashboard
+        <FaArrowLeft />
+          Back to Dashboard
       </a>
     </div>
 
