@@ -2,6 +2,7 @@ import React from "react"
 import Link from "next/link"
 import { auth } from "@/auth"
 import { redirect } from "next/navigation"
+import { RiGraduationCapFill } from "react-icons/ri"
 import {
   FaHome,
   FaSearch,
@@ -34,9 +35,12 @@ export default async function StudentDashboardLayout({
 
         {/* Logo */}
         <div className="h-20 flex items-center px-6 border-b border-slate-100">
+           <div className="relative w-12 h-12 rounded-2xl bg-white/10 border border-white/15 flex items-center justify-center">
+                    <RiGraduationCapFill className="text-[#075e3b] text-2xl" />
+                  </div>
           <Link
             href="/"
-            className="text-2xl font-bold text-[#075e3b]"
+            className="text-lg font-extrabold text-[#075e3b]"
           >
             NSUK Nest
           </Link>

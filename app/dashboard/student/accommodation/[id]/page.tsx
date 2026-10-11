@@ -1,14 +1,25 @@
 import Link from "next/link"
 import { notFound, redirect } from "next/navigation"
 import {
-  FaMapMarkerAlt,FaBed,FaShower,FaTint,FaBolt,
-  FaShieldAlt,FaCar,FaWifi,
-  FaWater,FaCouch,FaUtensils,
-  FaDoorOpen,FaHome,
+  FaMapMarkerAlt,
+  FaBed,
+  FaShower,
+  FaTint,
+  FaBolt,
+  FaShieldAlt,
+  FaCar,
+  FaWifi,
+  FaWater,
+  FaCouch,
+  FaUtensils,
+  FaDoorOpen,
+  FaHome,
+  FaArrowLeft,
 } from "react-icons/fa"
 import { Theme } from "@/components/theme"
 import { auth } from "@/auth"
 import { adminDb } from "@/lib/firebaseAdmin"
+import { FieldValue } from "firebase-admin/firestore"
 import SavePropertyButton from "@/components/SavePropertyButton"
 
 export const dynamic = "force-dynamic"
@@ -133,7 +144,7 @@ export default async function AccommodationDetails({
     redirect("/dashboard/student/accommodation")
   }
 
-  // Get the logged-in student's saved properties
+  // Get the logged-in student's user document
   const userSnapshot = await adminDb
     .collection("users")
     .where("email", "==", session.user.email)
@@ -144,6 +155,19 @@ export default async function AccommodationDetails({
     ? {}
     : userSnapshot.docs[0].data()
 
+  /*
+   * Record this property as viewed.
+   *
+   * FieldValue.arrayUnion() makes sure the same property
+   * is only stored once, even if the student opens it multiple times.
+   */
+  if (!userSnapshot.empty) {
+    await userSnapshot.docs[0].ref.update({
+      viewedProperties: FieldValue.arrayUnion(id),
+    })
+  }
+
+  // Get the logged-in student's saved properties
   const savedProperties = Array.isArray(userData.savedProperties)
     ? userData.savedProperties
     : []
@@ -174,10 +198,19 @@ export default async function AccommodationDetails({
         {/* Back to accommodations */}
         <Link
           href="/dashboard/student/accommodation"
-          className="mb-6 inline-block text-sm font-medium transition-colors"
+          className="mb-6 text-sm font-bold transition-colors flex items-center gap-2 "
           style={{ color: Theme.primaryColor }}
         >
-          ← Back to Accommodations
+            <FaArrowLeft />
+             Back to Dashboard
+{/* 
+            <a
+                  href="/dashboard/student"
+                  className="text-sm font-medium text-[#075e3b] hover:underline flex items-center gap-2 font-semibold"
+                >
+                  <FaArrowLeft />
+                    Back to Dashboard
+                </a> */}
         </Link>
 
         {/* Photo Gallery */}
@@ -567,4 +600,3 @@ export default async function AccommodationDetails({
     </main>
   )
 }
-

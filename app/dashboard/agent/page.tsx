@@ -13,6 +13,8 @@ import {
   FaClock,
   FaArrowRight,
 } from "react-icons/fa"
+import { MdFrontHand } from "react-icons/md"
+
 import UserMenu from "@/components/UserMenu"
 
 type Property = {
@@ -75,7 +77,7 @@ export default async function AgentDashboard() {
 
             <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">
               Welcome back
-              <PiHandWavingDuotone className="text-[#075e3b] text-lg" />
+              <MdFrontHand className="rotate-[-35deg] text-[#075e3b] text-lg" />
             </h1>
 
           </div>

@@ -25,17 +25,17 @@ export default function AdminNav() {
     },
     {
       label: "Users",
-      href: "#",
+      href: "/dashboard/admin/users",
       icon: FaUsers,
     },
     {
       label: "Students",
-      href: "#",
+      href: "/dashboard/admin/students",
       icon: FaUserGraduate,
     },
     {
       label: "Agents / Owners",
-      href: "#",
+      href: "/dashboard/admin/agents",
       icon: FaUserShield,
     },
     {
