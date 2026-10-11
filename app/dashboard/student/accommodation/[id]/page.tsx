@@ -21,6 +21,7 @@ import { auth } from "@/auth"
 import { adminDb } from "@/lib/firebaseAdmin"
 import { FieldValue } from "firebase-admin/firestore"
 import SavePropertyButton from "@/components/SavePropertyButton"
+import BookAccommodationButton from "@/components/BookAccommodationButton";
 
 export const dynamic = "force-dynamic"
 
@@ -580,13 +581,13 @@ export default async function AccommodationDetails({
               </p>
             </div>
 
-            <button
+            <BookAccommodationButton
+              propertyId={id}
               className="rounded-xl px-8 py-4 font-semibold text-white transition hover:opacity-95 shadow-md"
-              style={{ backgroundColor: Theme.primaryColor }}
-            >
-              Book Accommodation
-            </button>
+               style={{ backgroundColor: Theme.primaryColor }}
+              />
 
+      
           </div>
 
         </section>

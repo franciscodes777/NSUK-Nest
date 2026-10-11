@@ -31,7 +31,7 @@ export default function StudentNav() {
     },
     {
       label: "My Bookings",
-      href: "#",
+      href: "/dashboard/student/booking",
       icon: FaClipboardList,
     },
     {

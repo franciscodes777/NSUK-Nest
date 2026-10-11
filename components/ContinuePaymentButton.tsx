@@ -1,38 +1,59 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { useRouter } from "next/navigation"
-import { createBooking } from "@/app/actions/booking"
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { createBooking } from "@/app/actions/booking";
 
 type Props = {
-  propertyId: string
-}
+  propertyId: string;
+};
+
+type BookingResult = {
+  success: boolean;
+  bookingId?: string;
+};
 
 export default function ContinueToPaymentButton({
   propertyId,
 }: Props) {
-  const router = useRouter()
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState("")
+  const router = useRouter();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
   const handleContinue = async () => {
+    if (loading) return;
+
     try {
-      setLoading(true)
-      setError("")
+      setLoading(true);
+      setError("");
 
-      const result = await createBooking(propertyId)
-
-      if (result.success) {
-        router.push(
-          `/dashboard/student/payment/${result.bookingId}`
-        )
+      if (!propertyId) {
+        throw new Error("Property ID is missing. Please try again.");
       }
-    } catch (error) {
-      console.error(error)
-      setError("Unable to create your booking. Please try again.")
-      setLoading(false)
+
+      const result = (await createBooking(propertyId)) as BookingResult;
+
+      if (!result?.success || !result.bookingId) {
+        throw new Error(
+          "Your booking could not be created. Please try again."
+        );
+      }
+
+      router.push(
+        `/dashboard/student/payment/${encodeURIComponent(result.bookingId)}`
+      );
+    } catch (err: unknown) {
+      console.error("Booking creation failed:", err);
+
+      const message =
+        err instanceof Error
+          ? err.message
+          : "An unexpected error occurred while creating your booking.";
+
+      setError(message);
+      setLoading(false);
     }
-  }
+  };
 
   return (
     <div className="flex flex-col items-end gap-2">
@@ -46,10 +67,10 @@ export default function ContinueToPaymentButton({
       </button>
 
       {error && (
-        <p className="text-sm text-red-600">
+        <p role="alert" className="max-w-sm text-right text-sm text-red-600">
           {error}
         </p>
       )}
     </div>
-  )
+  );
 }

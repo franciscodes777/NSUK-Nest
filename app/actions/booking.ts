@@ -1,9 +1,13 @@
+
 "use server";
 
 import { auth } from "@/auth";
 import { adminDb } from "@/lib/firebaseAdmin";
 import { FieldValue } from "firebase-admin/firestore";
-import { paylukRequest } from "@/lib/payluk";
+import {
+  ensurePaylukCustomer,
+  paylukRequest,
+} from "@/lib/payluk";
 
 type PaylukEscrowResponse = {
   id?: string;
@@ -29,7 +33,7 @@ export async function createBooking(propertyId: string) {
     throw new Error("A valid property is required.");
   }
 
-  // Find the student account.
+  // Find the student's Firestore account.
   const userSnapshot = await adminDb
     .collection("users")
     .where("email", "==", session.user.email)
@@ -43,7 +47,7 @@ export async function createBooking(propertyId: string) {
   const student = userSnapshot.docs[0];
   const studentData = student.data();
 
-  // Find the property.
+  // Find the selected property.
   const propertyRef = adminDb
     .collection("properties")
     .doc(propertyId);
@@ -56,7 +60,7 @@ export async function createBooking(propertyId: string) {
 
   const property = propertySnapshot.data();
 
-  if (property?.status !== "approved") {
+  if (!property || property.status !== "approved") {
     throw new Error("This property is not available.");
   }
 
@@ -64,6 +68,16 @@ export async function createBooking(propertyId: string) {
 
   if (!Number.isFinite(rentAmount) || rentAmount <= 0) {
     throw new Error("This property's rent amount is invalid.");
+  }
+
+  if (
+    property.agentEmail &&
+    String(property.agentEmail).toLowerCase() ===
+      session.user.email.toLowerCase()
+  ) {
+    throw new Error(
+      "You cannot book your own accommodation listing."
+    );
   }
 
   const config = {
@@ -80,26 +94,177 @@ export async function createBooking(propertyId: string) {
     throw new Error("The Payluk delivery timeline is invalid.");
   }
 
-  // Reserve a Firestore booking ID before creating the escrow.
+  /*
+   * Find the property's owner in Firestore.
+   * Properties created through the agent dashboard store
+   * agentId and agentEmail.
+   */
+  let agentSnapshot:
+    | FirebaseFirestore.DocumentSnapshot
+    | undefined;
+
+  if (
+    typeof property.agentId === "string" &&
+    property.agentId.trim()
+  ) {
+    const possibleAgent = await adminDb
+      .collection("users")
+      .doc(property.agentId)
+      .get();
+
+    if (possibleAgent.exists) {
+      agentSnapshot = possibleAgent;
+    }
+  }
+
+  if (
+    !agentSnapshot &&
+    typeof property.agentEmail === "string" &&
+    property.agentEmail.trim()
+  ) {
+    const agentQuery = await adminDb
+      .collection("users")
+      .where("email", "==", property.agentEmail.trim())
+      .limit(1)
+      .get();
+
+    if (!agentQuery.empty) {
+      agentSnapshot = agentQuery.docs[0];
+    }
+  }
+
+  if (!agentSnapshot?.exists) {
+    throw new Error(
+      "The property owner's account could not be found. Please contact support."
+    );
+  }
+
+  const agent = agentSnapshot;
+  const agentData = agent.data();
+
+  if (!agentData) {
+    throw new Error(
+      "The property owner's profile could not be loaded."
+    );
+  }
+
+  if (agentData.role !== "agent") {
+    throw new Error(
+      "The property owner does not have a valid agent account."
+    );
+  }
+
+  const studentEmail = String(
+    studentData.email || session.user.email
+  )
+    .trim()
+    .toLowerCase();
+
+  const agentEmail = String(
+    agentData.email || property.agentEmail || ""
+  )
+    .trim()
+    .toLowerCase();
+
+  if (!studentEmail || !agentEmail) {
+    throw new Error(
+      "The student or property owner's email address is missing."
+    );
+  }
+
+  /*
+   * Ensure the student exists as a Payluk buyer.
+   * The student's profile phone number is required when
+   * Payluk needs to create a new customer.
+   */
+  const studentPaylukCustomerId =
+    await ensurePaylukCustomer({
+      email: studentEmail,
+      name: String(
+        studentData.name || session.user.name || ""
+      ),
+      phone: String(studentData.phone || ""),
+      existingCustomerId: studentData.paylukCustomerId || null,
+      countryId: "NG",
+      permissions: {
+        canBuy: true,
+        canSell: false,
+      },
+    });
+
+  // Persist the student's Payluk customer ID.
+  if (
+    studentData.paylukCustomerId !==
+    studentPaylukCustomerId
+  ) {
+    await student.ref.update({
+      paylukCustomerId: studentPaylukCustomerId,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+  }
+
+  /*
+   * Ensure the property's agent exists as a Payluk seller.
+   * This allows the escrow to be associated with the actual
+   * accommodation provider instead of the merchant itself.
+   */
+  const agentPaylukCustomerId =
+    await ensurePaylukCustomer({
+      email: agentEmail,
+      name: String(
+        agentData.name || property.agentName || ""
+      ),
+      phone: String(agentData.phone || ""),
+      existingCustomerId: agentData.paylukCustomerId || null,
+      countryId: "NG",
+      permissions: {
+        canBuy: false,
+        canSell: true,
+      },
+    });
+
+  // Persist the agent's Payluk customer ID.
+  if (
+    agentData.paylukCustomerId !==
+    agentPaylukCustomerId
+  ) {
+    await agent.ref.update({
+      paylukCustomerId: agentPaylukCustomerId,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+  }
+
+  /*
+   * Reserve a Firestore booking ID before creating the escrow.
+   */
   const bookingRef = adminDb.collection("bookings").doc();
 
-  // Payluk's documented create endpoint accepts form data.
+  /*
+   * Payluk's documented escrow creation endpoint accepts form data.
+   *
+   * The student is the buyer initiating this accommodation
+   * transaction, so the request uses the student's customer ID.
+   */
   const formData = new FormData();
 
   formData.set("amount", String(rentAmount));
   formData.set(
     "purpose",
-    `NSUK Nest accommodation: ${String(property.name || "Property")}`
+    `NSUK Nest accommodation: ${String(
+      property.name || "Property"
+    )}`
   );
   formData.set("whoPays", config.whoPays);
   formData.set("maxDelivery", String(config.deliveryDays));
   formData.set("deliveryTimeline", "days");
 
-  // Create the escrow using the server-side Payluk secret key.
   const escrow = await paylukRequest<PaylukEscrowResponse>(
     "/v1/escrow/create",
     {
       method: "POST",
+      headers: {
+        "customer-id": studentPaylukCustomerId,
+      },
       body: formData,
     }
   );
@@ -110,24 +275,33 @@ export async function createBooking(propertyId: string) {
     );
   }
 
-  // Save the booking and Payluk references together.
+  /*
+   * Save the booking and payment references.
+   * The booking remains pending until server-side payment
+   * verification confirms the transaction.
+   */
   await bookingRef.set({
     studentId: student.id,
-    studentEmail: session.user.email,
-
+    studentEmail,
     studentName:
       studentData.name ||
       session.user.name ||
       "",
+
+    studentPaylukCustomerId,
 
     propertyId: propertySnapshot.id,
     propertyName: property.name || "",
     propertyLocation: property.location || "",
     propertyAddress: property.address || "",
 
-    agentId: property.agentId || "",
-    agentName: property.agentName || "",
-    agentEmail: property.agentEmail || "",
+    agentId: agent.id,
+    agentName:
+      agentData.name ||
+      property.agentName ||
+      "",
+    agentEmail,
+    agentPaylukCustomerId,
 
     rentAmount,
 
@@ -150,3 +324,4 @@ export async function createBooking(propertyId: string) {
     bookingId: bookingRef.id,
   };
 }
+
