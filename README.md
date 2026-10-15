@@ -1,36 +1,27 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# NSUK Nest - Secure Student Housing Platform for NSUK
 
-## Getting Started
+Live Demo: https://nsuk-nest.vercel.app
 
-First, run the development server:
+### problem it solves
+Students in Keffi often get scammed by fake agents. or find it difficult to get the homes they want without rigorous searching. NSUK Nest helps NSUK students find verified housing around Keffi, holds rent payment safely untill move-in is confirmed to prevent rental scams.
 
-```bash
+> 🚧 Status: 65-70% Complete - Core dashboards 100% functional
+
+### Tech Stack
+- Next.js, TypeScript, Tailwind CSS, React
+- Deployed on Vercel
+
+### What Works Right Now (100%)
+- [x] Student & Landlord Dashboards - fully functional
+- [x] Listing creation & management
+- [x] Responsive UI, routing, components
+
+### In Progress (Payment Focus)
+- [ ] Escrow Payment System (Major feature left): Implementing secure flow with Paystack - Student pays -> Funds held in escrow -> Released to landlord after move-in confirmation -> Refund if apartment is fake/not as listed. This is to prevent scams.
+- [ ] Home page search function
+- [ ] Accommodation browse page (currently placeholder images, real data in dashboards)
+- [ ] Minor UI fixes
+
+### How to Run
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
-
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
