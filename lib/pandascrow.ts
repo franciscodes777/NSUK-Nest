@@ -1,7 +1,6 @@
 import "server-only";
 
 import { createHash } from "node:crypto";
-
 import {
   FieldValue,
   type DocumentReference,
@@ -46,13 +45,11 @@ export type PandascrowWebhookPayload = {
   event?: string;
   event_id?: string | number;
   timestamp?: number | string;
-
   data?: {
     event?: string;
     escrow_id?: string | number;
     escrow_type?: string;
     escrow_data?: PandascrowEscrow;
-
     transaction?: {
       _id?: string | number;
       escrow_id?: string | number;
@@ -66,7 +63,6 @@ export type PandascrowWebhookPayload = {
       updated_at?: string;
       completed_at?: string;
     };
-
     payment?: {
       method?: string;
       payment_url?: string;
@@ -74,7 +70,6 @@ export type PandascrowWebhookPayload = {
       provider?: string;
       virtual_account?: unknown;
     };
-
     payout?: {
       reference?: string;
       amount?: string | number;
@@ -87,19 +82,14 @@ export type PandascrowWebhookPayload = {
       wallet_succeeded?: boolean;
       failure_reason?: string | null;
     };
-
     paid_at?: string;
-
     dispute?: {
       reason?: string;
       raised_at?: string;
     };
-
     timestamp?: string | number;
-
     [key: string]: unknown;
   };
-
   [key: string]: unknown;
 };
 
@@ -128,6 +118,8 @@ export class PandascrowApiError extends Error {
     this.method = method;
     this.apiStatus = apiStatus;
     this.errorCode = errorCode;
+
+    Object.setPrototypeOf(this, PandascrowApiError.prototype);
   }
 }
 
@@ -151,11 +143,8 @@ export function getPandascrowConfig(): {
 
   const normalizedKey = secretKey.toLowerCase();
 
-  const isTestKey =
-    /^sk[-_]?test/.test(normalizedKey);
-
-  const isLiveKey =
-    /^sk[-_]?live/.test(normalizedKey);
+  const isTestKey = /^sk[-_]?test/.test(normalizedKey);
+  const isLiveKey = /^sk[-_]?live/.test(normalizedKey);
 
   if (!isTestKey && !isLiveKey) {
     throw new Error(
@@ -244,8 +233,7 @@ function getSafePandascrowErrorDetails(
     return {};
   }
 
-  const response =
-    body as Record<string, unknown>;
+  const response = body as Record<string, unknown>;
 
   const nestedError =
     response.error &&
@@ -284,8 +272,7 @@ function getSafePandascrowErrorDetails(
 /**
  * Make an authenticated server-side request to Pandascrow.
  *
- * Pandascrow API authentication uses the Token header.
- * Responses are returned in their original JSON envelope.
+ * The response is returned in its original JSON envelope.
  */
 export async function pandascrowRequest<T>(
   path: string,
@@ -306,9 +293,7 @@ export async function pandascrowRequest<T>(
     );
   }
 
-  const method =
-    (init.method || "GET").toUpperCase();
-
+  const method = (init.method || "GET").toUpperCase();
   const endpoint = path.split("?")[0];
 
   const headers = new Headers(init.headers);
@@ -320,24 +305,18 @@ export async function pandascrowRequest<T>(
     init.body !== undefined &&
     !headers.has("Content-Type")
   ) {
-    headers.set(
-      "Content-Type",
-      "application/json"
-    );
+    headers.set("Content-Type", "application/json");
   }
 
   let response: Response;
 
   try {
-    response = await fetch(
-      `${baseUrl}${path}`,
-      {
-        ...init,
-        headers,
-        cache: "no-store",
-        signal: AbortSignal.timeout(20000),
-      }
-    );
+    response = await fetch(`${baseUrl}${path}`, {
+      ...init,
+      headers,
+      cache: "no-store",
+      signal: AbortSignal.timeout(20000),
+    });
   } catch (error: unknown) {
     console.error(
       "[Pandascrow] Network request failed",
@@ -397,10 +376,8 @@ export async function pandascrowRequest<T>(
         method,
         endpoint,
         httpStatus: response.status,
-        apiStatus:
-          safeDetails.apiStatus ?? null,
-        errorCode:
-          safeDetails.code ?? null,
+        apiStatus: safeDetails.apiStatus ?? null,
+        errorCode: safeDetails.code ?? null,
       }
     );
 
@@ -417,9 +394,7 @@ export async function pandascrowRequest<T>(
   return body as T;
 }
 
-function normalizeStatus(
-  value: unknown
-): string {
+function normalizeStatus(value: unknown): string {
   return typeof value === "string"
     ? value.trim().toLowerCase()
     : "";
@@ -471,14 +446,7 @@ function isCompleted(
 }
 
 /**
- * Create a deterministic webhook identifier.
- *
- * Pandascrow recommends using a transaction or payout
- * reference for idempotency. We also use an explicit
- * event ID when the payload provides one.
- *
- * If no stable identifier is available, this returns null.
- * Booking state transitions must remain safe in that case.
+ * Create a deterministic webhook identifier for deduplication.
  */
 function getWebhookIdempotencyKey(
   payload: PandascrowWebhookPayload,
@@ -487,8 +455,7 @@ function getWebhookIdempotencyKey(
   transactionReference: string,
   payoutReference: string
 ): string | null {
-  const explicitEventId =
-    payload.event_id;
+  const explicitEventId = payload.event_id;
 
   const stableReference =
     isNonEmptyString(payoutReference)
@@ -498,8 +465,7 @@ function getWebhookIdempotencyKey(
         : null;
 
   const payloadTimestamp =
-    payload.timestamp ??
-    payload.data?.timestamp;
+    payload.timestamp ?? payload.data?.timestamp;
 
   const timestamp =
     payloadTimestamp !== undefined &&
@@ -532,18 +498,13 @@ function getWebhookIdempotencyKey(
 }
 
 /**
- * Synchronize an existing NSUK Nest booking with a
- * Pandascrow webhook that has already passed signature
- * verification.
+ * Synchronize an existing NSUK Nest booking with a Pandascrow
+ * webhook that has already passed signature verification.
  *
- * Contact access is unlocked only when a signed
- * escrow.paid event confirms BOTH:
+ * Contact access is unlocked by escrow.paid only when the
+ * escrow is funded and its transaction status is successful.
  *
- * 1. The escrow status is "funded".
- * 2. The funding transaction status is "success".
- *
- * This function must never be called with an unverified
- * webhook payload.
+ * This function must never be called with an unverified payload.
  */
 export async function syncBookingFromPandascrow(
   bookingRef: DocumentReference,
@@ -553,11 +514,8 @@ export async function syncBookingFromPandascrow(
   paymentStatus: string;
   contactUnlocked: boolean;
 } | null> {
-  const eventName =
-    normalizeStatus(payload.event);
-
-  const eventData =
-    payload.data;
+  const eventName = normalizeStatus(payload.event);
+  const eventData = payload.data;
 
   if (!eventName || !eventData) {
     throw new Error(
@@ -565,8 +523,7 @@ export async function syncBookingFromPandascrow(
     );
   }
 
-  const escrow =
-    eventData.escrow_data;
+  const escrow = eventData.escrow_data;
 
   const escrowIdValue =
     eventData.escrow_id ??
@@ -584,14 +541,12 @@ export async function syncBookingFromPandascrow(
     );
   }
 
-  const escrowId =
-    String(escrowIdValue);
+  const escrowId = String(escrowIdValue);
+  const escrowStatus = normalizeStatus(escrow?.status);
 
-  const escrowStatus =
-    normalizeStatus(escrow?.status);
-
-  const transactionStatus =
-    normalizeStatus(eventData.transaction?.status);
+  const transactionStatus = normalizeStatus(
+    eventData.transaction?.status
+  );
 
   const transactionReference =
     eventData.transaction?.transaction_ref ||
@@ -601,14 +556,14 @@ export async function syncBookingFromPandascrow(
   const payoutReference =
     eventData.payout?.reference || "";
 
-  const payoutStatus =
-    normalizeStatus(eventData.payout?.status);
+  const payoutStatus = normalizeStatus(
+    eventData.payout?.status
+  );
 
   const commonUpdates = {
     pandascrowEscrowId: escrowId,
     pandascrowEvent: eventName,
-    pandascrowStatus:
-      escrowStatus || "unknown",
+    pandascrowStatus: escrowStatus || "unknown",
 
     ...(transactionReference
       ? {
@@ -620,8 +575,7 @@ export async function syncBookingFromPandascrow(
     pandascrowLastWebhookAt:
       FieldValue.serverTimestamp(),
 
-    updatedAt:
-      FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
   };
 
   const idempotencyKey =
@@ -647,16 +601,13 @@ export async function syncBookingFromPandascrow(
 
   await bookingRef.firestore.runTransaction(
     async (transaction) => {
-      /*
-       * All transaction reads happen before any writes.
-       */
+      // All reads must happen before any writes.
       const bookingSnapshot =
         await transaction.get(bookingRef);
 
-      const processedEventSnapshot =
-        eventRef
-          ? await transaction.get(eventRef)
-          : null;
+      const processedEventSnapshot = eventRef
+        ? await transaction.get(eventRef)
+        : null;
 
       if (!bookingSnapshot.exists) {
         throw new Error(
@@ -667,10 +618,7 @@ export async function syncBookingFromPandascrow(
       const booking =
         bookingSnapshot.data() as Record<string, unknown>;
 
-      /*
-       * Ensure this webhook cannot associate a different
-       * escrow with an existing booking.
-       */
+      // Prevent a webhook from being associated with a different escrow.
       const existingEscrowId =
         booking.pandascrowEscrowId;
 
@@ -695,10 +643,7 @@ export async function syncBookingFromPandascrow(
       const existingContactUnlocked =
         booking.contactUnlocked === true;
 
-      /*
-       * Duplicate delivery: do not apply the same
-       * event transition again.
-       */
+      // Do not process the same identified event twice.
       if (processedEventSnapshot?.exists) {
         result = {
           status: existingStatus,
@@ -709,10 +654,6 @@ export async function syncBookingFromPandascrow(
         return;
       }
 
-      /*
-       * A refund is a financial state change that must
-       * not be reversed by an older payment event.
-       */
       const refundConfirmed =
         eventName === "escrow.refunded" ||
         eventName === "escrow.refund.completed" ||
@@ -724,8 +665,7 @@ export async function syncBookingFromPandascrow(
           status: "refunded",
           paymentStatus: "refunded",
           contactUnlocked: false,
-          refundedAt:
-            FieldValue.serverTimestamp(),
+          refundedAt: FieldValue.serverTimestamp(),
         });
 
         result = {
@@ -734,13 +674,8 @@ export async function syncBookingFromPandascrow(
           contactUnlocked: false,
         };
       } else if (isRefunded(booking)) {
-        /*
-         * Preserve an existing refund against delayed events.
-         */
-        transaction.update(
-          bookingRef,
-          commonUpdates
-        );
+        // Do not reverse an existing refund.
+        transaction.update(bookingRef, commonUpdates);
 
         result = {
           status: "refunded",
@@ -751,12 +686,6 @@ export async function syncBookingFromPandascrow(
         eventName === "escrow.dispute.opened" ||
         escrowStatus === "disputed"
       ) {
-        /*
-         * A dispute does not prove that payment succeeded.
-         *
-         * Preserve the verified payment status. Keep contact
-         * visible only if funding was already verified.
-         */
         const paymentVerified =
           isPaymentAlreadyVerified(booking);
 
@@ -771,8 +700,7 @@ export async function syncBookingFromPandascrow(
           status: "disputed",
           paymentStatus: nextPaymentStatus,
           contactUnlocked: nextContactUnlocked,
-          disputedAt:
-            FieldValue.serverTimestamp(),
+          disputedAt: FieldValue.serverTimestamp(),
         });
 
         result = {
@@ -784,18 +712,12 @@ export async function syncBookingFromPandascrow(
         eventName === "escrow.completed" ||
         escrowStatus === "completed"
       ) {
-        /*
-         * An authenticated completed-escrow event is a
-         * terminal escrow transition. A previously refunded
-         * booking was handled above.
-         */
         transaction.update(bookingRef, {
           ...commonUpdates,
           status: "completed",
           paymentStatus: "released",
           contactUnlocked: true,
-          completedAt:
-            FieldValue.serverTimestamp(),
+          completedAt: FieldValue.serverTimestamp(),
         });
 
         result = {
@@ -806,13 +728,6 @@ export async function syncBookingFromPandascrow(
       } else if (
         eventName === "escrow.payout.completed"
       ) {
-        /*
-         * Record payout data separately from the initial
-         * payment confirmation.
-         *
-         * A successful payout can be completed through a
-         * bank or through the Pandascrow wallet.
-         */
         const walletSucceeded =
           eventData.payout?.wallet_succeeded === true;
 
@@ -862,8 +777,7 @@ export async function syncBookingFromPandascrow(
             status: "completed",
             paymentStatus: "released",
             contactUnlocked: true,
-            completedAt:
-              FieldValue.serverTimestamp(),
+            completedAt: FieldValue.serverTimestamp(),
           });
 
           result = {
@@ -872,11 +786,6 @@ export async function syncBookingFromPandascrow(
             contactUnlocked: true,
           };
         } else {
-          /*
-           * A failed bank attempt may coexist with a
-           * successful wallet payout. If neither succeeded,
-           * preserve the existing booking lifecycle.
-           */
           transaction.update(
             bookingRef,
             payoutUpdates
@@ -885,18 +794,10 @@ export async function syncBookingFromPandascrow(
           result = {
             status: existingStatus,
             paymentStatus: existingPaymentStatus,
-            contactUnlocked:
-              existingContactUnlocked,
+            contactUnlocked: existingContactUnlocked,
           };
         }
       } else {
-        /*
-         * Verify escrow funding using the documented
-         * event, escrow status, and transaction status.
-         *
-         * A signed event name by itself is insufficient
-         * to unlock the agent's contact details.
-         */
         const fundingVerified =
           eventName === "escrow.paid" &&
           escrowStatus === "funded" &&
@@ -907,10 +808,7 @@ export async function syncBookingFromPandascrow(
             isCompleted(booking) ||
             isDisputed(booking)
           ) {
-            /*
-             * Do not downgrade an already completed or
-             * disputed booking because of a delayed paid event.
-             */
+            // Do not downgrade a later booking state.
             transaction.update(
               bookingRef,
               commonUpdates
@@ -929,6 +827,7 @@ export async function syncBookingFromPandascrow(
               status: "inspection_pending",
               paymentStatus: "paid",
               contactUnlocked: true,
+
               paidAt:
                 eventData.paid_at ||
                 FieldValue.serverTimestamp(),
@@ -944,10 +843,6 @@ export async function syncBookingFromPandascrow(
           eventName === "escrow.created" ||
           escrowStatus === "pending"
         ) {
-          /*
-           * Never downgrade a booking that has already
-           * reached a verified payment or later lifecycle state.
-           */
           const alreadyAdvanced =
             isPaymentAlreadyVerified(booking) ||
             isCompleted(booking) ||
@@ -963,8 +858,7 @@ export async function syncBookingFromPandascrow(
             result = {
               status: existingStatus,
               paymentStatus: existingPaymentStatus,
-              contactUnlocked:
-                existingContactUnlocked,
+              contactUnlocked: existingContactUnlocked,
             };
           } else {
             transaction.update(bookingRef, {
@@ -981,10 +875,7 @@ export async function syncBookingFromPandascrow(
             };
           }
         } else {
-          /*
-           * An unrelated event updates diagnostic metadata
-           * without changing the booking's financial state.
-           */
+          // Unrelated events only update diagnostic metadata.
           transaction.update(
             bookingRef,
             commonUpdates
@@ -993,30 +884,27 @@ export async function syncBookingFromPandascrow(
           result = {
             status: existingStatus,
             paymentStatus: existingPaymentStatus,
-            contactUnlocked:
-              existingContactUnlocked,
+            contactUnlocked: existingContactUnlocked,
           };
         }
       }
 
-      /*
-       * Save the deduplication record in the same Firestore
-       * transaction as the booking update. If the transaction
-       * fails, the event record is not committed separately.
-       */
+      // Store the idempotency record atomically with the update.
       if (eventRef) {
         transaction.set(eventRef, {
           event: eventName,
           escrowId,
           bookingId: bookingRef.id,
+
           ...(transactionReference
             ? { transactionReference }
             : {}),
+
           ...(payoutReference
             ? { payoutReference }
             : {}),
-          processedAt:
-            FieldValue.serverTimestamp(),
+
+          processedAt: FieldValue.serverTimestamp(),
         });
       }
     }
