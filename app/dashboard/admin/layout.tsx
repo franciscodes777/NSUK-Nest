@@ -40,7 +40,7 @@ export default async function AdminDashboardLayout({
         <div className="h-20 flex items-center px-6 border-b border-slate-100">
           <Link
             href="/"
-            className="text-2xl font-bold text-[#075e3b]"
+            className="text-xl font-bold text-[#075e3b]"
           >
             NSUK Nest
           </Link>
