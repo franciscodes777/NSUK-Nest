@@ -1,10 +1,17 @@
-import NextAuth from "next-auth"
-import Google from "next-auth/providers/google"
-import GitHub from "next-auth/providers/github"
-import { cookies } from "next/headers"
-import { adminDb } from "@/lib/firebaseAdmin"
+
+import NextAuth from "next-auth";
+import Google from "next-auth/providers/google";
+import GitHub from "next-auth/providers/github";
+import Credentials from "next-auth/providers/credentials";
+import { cookies } from "next/headers";
+import { compare } from "bcryptjs";
+import { adminDb } from "@/lib/firebaseAdmin";
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
+  session: {
+    strategy: "jwt",
+  },
+
   providers: [
     Google({
       clientId: process.env.AUTH_GOOGLE_ID,
@@ -21,145 +28,234 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       clientId: process.env.AUTH_GITHUB_ID,
       clientSecret: process.env.AUTH_GITHUB_SECRET,
     }),
+
+    Credentials({
+      id: "credentials",
+      name: "Email and Password",
+
+      credentials: {
+        email: {
+          label: "Email",
+          type: "email",
+        },
+        password: {
+          label: "Password",
+          type: "password",
+        },
+      },
+
+      async authorize(credentials) {
+        const email =
+          typeof credentials?.email === "string"
+            ? credentials.email.trim().toLowerCase()
+            : "";
+
+        const password =
+          typeof credentials?.password === "string"
+            ? credentials.password
+            : "";
+
+        if (!email || !password) {
+          return null;
+        }
+
+        try {
+          const adminEmail =
+            process.env.ADMIN_EMAIL?.trim().toLowerCase();
+
+          // The private admin account continues to use its
+          // existing Google/GitHub authentication.
+          if (adminEmail && email === adminEmail) {
+            return null;
+          }
+
+          const userSnapshot = await adminDb
+            .collection("users")
+            .where("email", "==", email)
+            .limit(1)
+            .get();
+
+          if (userSnapshot.empty) {
+            return null;
+          }
+
+          const userDoc = userSnapshot.docs[0];
+          const userData = userDoc.data();
+
+          if (
+            userData.role !== "student" &&
+            userData.role !== "agent"
+          ) {
+            return null;
+          }
+
+          if (
+            typeof userData.passwordHash !== "string" ||
+            !userData.passwordHash
+          ) {
+            return null;
+          }
+
+          const passwordMatches = await compare(
+            password,
+            userData.passwordHash
+          );
+
+          if (!passwordMatches) {
+            return null;
+          }
+
+          return {
+            id: userDoc.id,
+            name:
+              typeof userData.name === "string"
+                ? userData.name
+                : "",
+            email,
+            image:
+              typeof userData.image === "string"
+                ? userData.image
+                : null,
+          };
+        } catch (error) {
+          console.error("Email authentication failed:", error);
+          return null;
+        }
+      },
+    }),
   ],
 
   callbacks: {
-    async signIn({ user }) {
+    async signIn({ user, account }) {
       if (!user.email) {
-        return false
+        return false;
       }
 
-      const email = user.email.toLowerCase()
-      const adminEmail = process.env.ADMIN_EMAIL?.toLowerCase()
+      const email = user.email.trim().toLowerCase();
+      const adminEmail =
+        process.env.ADMIN_EMAIL?.trim().toLowerCase();
 
-      // ----------------------------------
-      // PRIVATE ADMIN ACCOUNT
-      // ----------------------------------
+      // Private admin account.
       if (adminEmail && email === adminEmail) {
-        return true
+        return account?.provider !== "credentials";
+      }
+
+      // Email/password users have already been verified by
+      // the Credentials provider.
+      if (account?.provider === "credentials") {
+        return true;
       }
 
       if (!user.id) {
-        return false
+        return false;
       }
 
-      const usersRef = adminDb.collection("users")
+      const usersRef = adminDb.collection("users");
 
       const userSnapshot = await usersRef
-        .where("email", "==", user.email)
+        .where("email", "==", email)
         .limit(1)
-        .get()
+        .get();
 
-      // ----------------------------------
-      // EXISTING STUDENT / AGENT ACCOUNT
-      // ----------------------------------
+      // Existing student or agent account.
       if (!userSnapshot.empty) {
-        const userData = userSnapshot.docs[0].data()
+        const userData = userSnapshot.docs[0].data();
 
         if (
           userData.role !== "student" &&
           userData.role !== "agent"
         ) {
-          return "/auth?error=account-incomplete"
+          return "/auth?error=account-incomplete";
         }
 
-        return true
+        return true;
       }
 
-      // ----------------------------------
-      // NEW USER
-      // ----------------------------------
-      const cookieStore = await cookies()
-      const action = cookieStore.get("nsuk_auth_action")?.value
+      // A new social account must explicitly come from sign-up.
+      const cookieStore = await cookies();
+      const action = cookieStore.get("nsuk_auth_action")?.value;
 
-      // New user trying to LOG IN without signing up.
       if (action !== "signup") {
-        return "/auth?error=no-account"
+        return "/auth?error=no-account";
       }
 
-      // ----------------------------------
-      // NEW SIGNUP
-      // ----------------------------------
-      const selectedRole = cookieStore.get("nsuk_role")?.value
+      const selectedRole = cookieStore.get("nsuk_role")?.value;
 
       const role =
         selectedRole === "agent"
           ? "agent"
           : selectedRole === "student"
             ? "student"
-            : null
+            : null;
 
       if (!role) {
-        return "/auth?error=no-role"
+        return "/auth?error=no-role";
       }
 
-      await usersRef.doc(user.id).set({
-        name: user.name || "",
-        email: user.email,
-        image: user.image || "",
-        role,
-        createdAt: new Date(),
-      })
+      // Use a new document only when no account exists for
+      // this email address.
+      await usersRef.doc(user.id).set(
+        {
+          name: user.name || "",
+          email,
+          image: user.image || "",
+          role,
+          createdAt: new Date(),
+        },
+        { merge: true }
+      );
 
-      return true
+      return true;
     },
 
-    // ----------------------------------
-    // JWT
-    // ----------------------------------
-    async jwt({ token }) {
+    async jwt({ token, user, account }) {
+      if (user && account?.provider === "credentials") {
+        token.sub = user.id;
+      }
+
       if (!token.email) {
-        return token
+        return token;
       }
 
-      const email = token.email.toLowerCase()
-      const adminEmail = process.env.ADMIN_EMAIL?.toLowerCase()
+      const email = token.email.trim().toLowerCase();
+      const adminEmail =
+        process.env.ADMIN_EMAIL?.trim().toLowerCase();
 
-      // ----------------------------------
-      // PRIVATE ADMIN ACCOUNT
-      // ----------------------------------
+      // Private admin account.
       if (adminEmail && email === adminEmail) {
-        token.role = "admin"
-        return token
+        token.role = "admin";
+        return token;
       }
 
-      // ----------------------------------
-      // STUDENT / AGENT ACCOUNT
-      // ----------------------------------
+      // Retrieve the current role and profile from Firestore.
       const userSnapshot = await adminDb
         .collection("users")
-        .where("email", "==", token.email)
+        .where("email", "==", email)
         .limit(1)
-        .get()
+        .get();
 
       if (!userSnapshot.empty) {
-        const userData = userSnapshot.docs[0].data()
+        const userData = userSnapshot.docs[0].data();
 
-        // Keep the role synced from Firestore.
         if (
           userData.role === "agent" ||
           userData.role === "student"
         ) {
-          token.role = userData.role
+          token.role = userData.role;
         }
 
-        // Keep the account name synced from Firestore.
         if (typeof userData.name === "string") {
-          token.name = userData.name
+          token.name = userData.name;
         }
 
-        // Keep the profile image synced from Firestore.
         if (typeof userData.image === "string") {
-          token.picture = userData.image
+          token.picture = userData.image;
         }
       }
 
-      return token
+      return token;
     },
 
-    // ----------------------------------
-    // SESSION
-    // ----------------------------------
     async session({ session, token }) {
       return {
         ...session,
@@ -184,7 +280,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
               ? token.role
               : undefined,
         },
-      }
+      };
     },
   },
-})
+});
+
