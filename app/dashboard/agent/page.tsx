@@ -1,9 +1,446 @@
 
+// import Link from "next/link"
+// import { redirect } from "next/navigation"
+// import { auth } from "@/auth"
+// import { adminDb } from "@/lib/firebaseAdmin"
+// import { PiHandWavingDuotone } from "react-icons/pi"
+// import {
+//   FaPlus,
+//   FaBuilding,
+//   FaEnvelope,
+//   FaUser,
+//   FaCheckCircle,
+//   FaClock,
+//   FaArrowRight,
+// } from "react-icons/fa"
+// import { MdFrontHand } from "react-icons/md"
+
+// import UserMenu from "@/components/UserMenu"
+
+// type Property = {
+//   id: string
+//   name?: string
+//   location?: string
+//   price?: number | string
+//   status?: string
+// }
+
+// export default async function AgentDashboard() {
+//   const session = await auth()
+
+//   if (!session?.user?.email) {
+//     redirect("/login")
+//   }
+
+//   if (session.user.role !== "agent") {
+//     redirect("/dashboard/student")
+//   }
+
+//   const propertySnapshot = await adminDb
+//     .collection("properties")
+//     .where("agentEmail", "==", session.user.email)
+//     .get()
+
+//   const properties: Property[] = propertySnapshot.docs.map((doc) => ({
+//     id: doc.id,
+//     ...(doc.data() as Omit<Property, "id">),
+//   }))
+
+//   const totalProperties = properties.length
+
+//   const approvedProperties = properties.filter(
+//     (property) => property.status === "approved"
+//   ).length
+
+//   const pendingProperties = properties.filter(
+//     (property) => property.status === "pending"
+//   ).length
+
+//   const rejectedProperties = properties.filter(
+//     (property) => property.status === "rejected"
+//   ).length
+
+//   return (
+//     <main className="min-h-screen bg-slate-50 flex -mt-1.5">
+
+//       {/* MAIN CONTENT */}
+//       <section className="flex-1">
+
+//         {/* TOP BAR */}
+//         <header className="h-20 bg-white border-b border-slate-200 flex items-center justify-between px-6 lg:px-10">
+
+//           <div>
+
+//             <p className="text-sm text-slate-500">
+//               Agent / Owner Dashboard
+//             </p>
+
+//             <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+//               Welcome back
+//               <MdFrontHand className="rotate-[-35deg] text-[#075e3b] text-lg" />
+//             </h1>
+
+//           </div>
+
+//           <UserMenu />
+
+//         </header>
+
+//         {/* BODY */}
+//         <div className="p-6 lg:p-10">
+
+//           {/* WELCOME */}
+//           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+
+//             <div>
+
+//               <h2 className="text-2xl font-bold text-slate-900">
+//                 Manage your properties
+//               </h2>
+
+//               <p className="text-slate-500 mt-1">
+//                 Add, manage and monitor your accommodation listings.
+//               </p>
+
+//             </div>
+
+//             <Link
+//               href="/dashboard/agent/properties/new"
+//               className="inline-flex items-center justify-center gap-2 bg-[#075e3b] text-white px-5 py-3 rounded-xl font-semibold text-sm hover:bg-[#064d31] transition"
+//             >
+//               <FaPlus />
+//               Add Property
+//             </Link>
+
+//           </div>
+
+//           {/* STATS */}
+//           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5 mt-8">
+
+//             {/* TOTAL */}
+//             <div className="bg-white border border-slate-200 rounded-2xl p-5">
+
+//               <div className="flex items-center justify-between">
+
+//                 <p className="text-sm text-slate-500">
+//                   Total Properties
+//                 </p>
+
+//                 <FaBuilding className="text-[#075e3b]" />
+
+//               </div>
+
+//               <p className="text-3xl font-bold text-slate-900 mt-3">
+//                 {totalProperties}
+//               </p>
+
+//             </div>
+
+//             {/* APPROVED */}
+//             <div className="bg-white border border-slate-200 rounded-2xl p-5">
+
+//               <div className="flex items-center justify-between">
+
+//                 <p className="text-sm text-slate-500">
+//                   Approved
+//                 </p>
+
+//                 <FaCheckCircle className="text-green-600" />
+
+//               </div>
+
+//               <p className="text-3xl font-bold text-slate-900 mt-3">
+//                 {approvedProperties}
+//               </p>
+
+//             </div>
+
+//             {/* PENDING */}
+//             <div className="bg-white border border-slate-200 rounded-2xl p-5">
+
+//               <div className="flex items-center justify-between">
+
+//                 <p className="text-sm text-slate-500">
+//                   Pending
+//                 </p>
+
+//                 <FaClock className="text-yellow-500" />
+
+//               </div>
+
+//               <p className="text-3xl font-bold text-slate-900 mt-3">
+//                 {pendingProperties}
+//               </p>
+
+//             </div>
+
+//             {/* ENQUIRIES */}
+//             <div className="bg-white border border-slate-200 rounded-2xl p-5">
+
+//               <div className="flex items-center justify-between">
+
+//                 <p className="text-sm text-slate-500">
+//                   Enquiries
+//                 </p>
+
+//                 <FaEnvelope className="text-[#075e3b]" />
+
+//               </div>
+
+//               <p className="text-3xl font-bold text-slate-900 mt-3">
+//                 0
+//               </p>
+
+//             </div>
+
+//           </div>
+
+//           {/* PROPERTY MANAGEMENT */}
+//           <div className="mt-10">
+
+//             <div className="flex items-center justify-between mb-5">
+
+//               <div>
+
+//                 <h2 className="text-xl font-bold text-slate-900">
+//                   My Properties
+//                 </h2>
+
+//                 <p className="text-sm text-slate-500 mt-1">
+//                   Manage your current accommodation listings.
+//                 </p>
+
+//               </div>
+
+//               <Link
+//                 href="/dashboard/agent/properties"
+//                 className="hidden sm:flex items-center gap-2 text-sm font-semibold text-[#075e3b] hover:text-[#064d31]"
+//               >
+//                 View all
+//                 <FaArrowRight className="text-xs" />
+//               </Link>
+
+//             </div>
+
+//             {/* PROPERTY TABLE */}
+//             <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
+
+//               <div className="overflow-x-auto">
+
+//                 <table className="w-full text-sm">
+
+//                   <thead className="bg-slate-50 border-b border-slate-200">
+
+//                     <tr>
+
+//                       <th className="text-left px-6 py-4 font-semibold text-slate-600">
+//                         Property
+//                       </th>
+
+//                       <th className="text-left px-6 py-4 font-semibold text-slate-600">
+//                         Location
+//                       </th>
+
+//                       <th className="text-left px-6 py-4 font-semibold text-slate-600">
+//                         Price
+//                       </th>
+
+//                       <th className="text-left px-6 py-4 font-semibold text-slate-600">
+//                         Status
+//                       </th>
+
+//                       <th className="text-right px-6 py-4 font-semibold text-slate-600">
+//                         Action
+//                       </th>
+
+//                     </tr>
+
+//                   </thead>
+
+//                   <tbody>
+
+//                     {properties.length === 0 ? (
+
+//                       <tr>
+
+//                         <td
+//                           colSpan={5}
+//                           className="px-6 py-16 text-center"
+//                         >
+
+//                           <div className="flex flex-col items-center">
+
+//                             <div className="w-14 h-14 rounded-full bg-[#075e3b]/10 flex items-center justify-center text-[#075e3b]">
+//                               <FaBuilding className="text-xl" />
+//                             </div>
+
+//                             <h3 className="font-bold text-slate-800 mt-4">
+//                               No properties yet
+//                             </h3>
+
+//                             <p className="text-sm text-slate-500 mt-1 max-w-sm">
+//                               You haven't added any accommodation listings.
+//                               Add your first property to get started.
+//                             </p>
+
+//                             <Link
+//                               href="/dashboard/agent/properties/new"
+//                               className="mt-5 inline-flex items-center gap-2 bg-[#075e3b] text-white px-5 py-2.5 rounded-lg font-semibold text-sm hover:bg-[#064d31] transition"
+//                             >
+//                               <FaPlus />
+//                               Add Property
+//                             </Link>
+
+//                           </div>
+
+//                         </td>
+
+//                       </tr>
+
+//                     ) : (
+
+//                       properties.map((property) => (
+
+//                         <tr
+//                           key={property.id}
+//                           className="border-b border-slate-100 last:border-b-0"
+//                         >
+
+//                           <td className="px-6 py-4">
+
+//                             <div className="font-semibold text-slate-900">
+//                               {property.name || "Untitled Property"}
+//                             </div>
+
+//                           </td>
+
+//                           <td className="px-6 py-4 text-slate-500">
+//                             {property.location || "Not provided"}
+//                           </td>
+
+//                           <td className="px-6 py-4 font-semibold text-slate-900">
+//                             ₦{Number(property.price || 0).toLocaleString()}
+//                           </td>
+
+//                           <td className="px-6 py-4">
+
+//                             <span
+//                               className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold capitalize ${
+//                                 property.status === "approved"
+//                                   ? "bg-green-100 text-green-700"
+//                                   : property.status === "rejected"
+//                                   ? "bg-red-100 text-red-700"
+//                                   : "bg-yellow-100 text-yellow-700"
+//                               }`}
+//                             >
+//                               {property.status || "pending"}
+//                             </span>
+
+//                           </td>
+
+//                           <td className="px-6 py-4 text-right">
+
+//                             <Link
+//                               href={`/dashboard/agent/properties/${property.id}`}
+//                               className="inline-flex items-center justify-center rounded-lg border border-green-600 px-4 py-2 font-medium text-green-600 transition hover:bg-green-50"
+//                             >
+//                               View
+//                             </Link>
+
+//                           </td>
+
+//                         </tr>
+
+//                       ))
+
+//                     )}
+
+//                   </tbody>
+
+//                 </table>
+
+//               </div>
+
+//             </div>
+
+//           </div>
+
+//           {/* QUICK ACTIONS */}
+//           <div className="mt-10">
+
+//             <h2 className="text-xl font-bold text-slate-900">
+//               Quick Actions
+//             </h2>
+
+//             <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 mt-5">
+
+//               <Link
+//                 href="/dashboard/agent/properties/new"
+//                 className="bg-white border border-slate-200 rounded-2xl p-5 hover:border-[#075e3b] transition"
+//               >
+
+//                 <FaPlus className="text-[#075e3b] text-xl" />
+
+//                 <h3 className="font-bold text-slate-900 mt-4">
+//                   Add Property
+//                 </h3>
+
+//                 <p className="text-sm text-slate-500 mt-1">
+//                   Create a new accommodation listing.
+//                 </p>
+
+//               </Link>
+
+//               <Link
+//                 href="/dashboard/agent/properties"
+//                 className="bg-white border border-slate-200 rounded-2xl p-5 hover:border-[#075e3b] transition"
+//               >
+
+//                 <FaBuilding className="text-[#075e3b] text-xl" />
+
+//                 <h3 className="font-bold text-slate-900 mt-4">
+//                   Manage Properties
+//                 </h3>
+
+//                 <p className="text-sm text-slate-500 mt-1">
+//                   View and manage all your property listings.
+//                 </p>
+
+//               </Link>
+
+//               <Link
+//                 href="/profile"
+//                 className="bg-white border border-slate-200 rounded-2xl p-5 hover:border-[#075e3b] transition"
+//               >
+
+//                 <FaUser className="text-[#075e3b] text-xl" />
+
+//                 <h3 className="font-bold text-slate-900 mt-4">
+//                   Edit Profile
+//                 </h3>
+
+//                 <p className="text-sm text-slate-500 mt-1">
+//                   Update your account information.
+//                 </p>
+
+//               </Link>
+
+//             </div>
+
+//           </div>
+
+//         </div>
+
+//       </section>
+
+//     </main>
+//   )
+// }
+
 import Link from "next/link"
 import { redirect } from "next/navigation"
 import { auth } from "@/auth"
 import { adminDb } from "@/lib/firebaseAdmin"
-import { PiHandWavingDuotone } from "react-icons/pi"
 import {
   FaPlus,
   FaBuilding,
@@ -56,49 +493,47 @@ export default async function AgentDashboard() {
     (property) => property.status === "pending"
   ).length
 
-  const rejectedProperties = properties.filter(
-    (property) => property.status === "rejected"
-  ).length
-
   return (
-    <main className="min-h-screen bg-slate-50 flex -mt-1.5">
+    <main className="min-h-screen min-w-0 bg-slate-50">
 
       {/* MAIN CONTENT */}
-      <section className="flex-1">
+      <section className="min-w-0 w-full">
 
         {/* TOP BAR */}
-        <header className="h-20 bg-white border-b border-slate-200 flex items-center justify-between px-6 lg:px-10">
+        <header className="flex min-h-20 items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 sm:px-6 lg:px-10">
 
-          <div>
+          <div className="min-w-0">
 
-            <p className="text-sm text-slate-500">
+            <p className="text-xs text-slate-500 sm:text-sm">
               Agent / Owner Dashboard
             </p>
 
-            <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+            <h1 className="flex items-center gap-2 text-lg font-bold text-slate-900 sm:text-xl">
               Welcome back
-              <MdFrontHand className="rotate-[-35deg] text-[#075e3b] text-lg" />
+              <MdFrontHand className="shrink-0 rotate-[-35deg] text-lg text-[#075e3b]" />
             </h1>
 
           </div>
 
-          <UserMenu />
+          <div className="shrink-0">
+            <UserMenu />
+          </div>
 
         </header>
 
         {/* BODY */}
-        <div className="p-6 lg:p-10">
+        <div className="w-full p-4 sm:p-6 lg:p-10">
 
           {/* WELCOME */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
 
-            <div>
+            <div className="min-w-0">
 
-              <h2 className="text-2xl font-bold text-slate-900">
+              <h2 className="text-xl font-bold text-slate-900 sm:text-2xl">
                 Manage your properties
               </h2>
 
-              <p className="text-slate-500 mt-1">
+              <p className="mt-1 text-sm leading-relaxed text-slate-500">
                 Add, manage and monitor your accommodation listings.
               </p>
 
@@ -106,7 +541,7 @@ export default async function AgentDashboard() {
 
             <Link
               href="/dashboard/agent/properties/new"
-              className="inline-flex items-center justify-center gap-2 bg-[#075e3b] text-white px-5 py-3 rounded-xl font-semibold text-sm hover:bg-[#064d31] transition"
+              className="inline-flex w-full shrink-0 items-center justify-center gap-2 rounded-xl bg-[#075e3b] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#064d31] sm:w-auto"
             >
               <FaPlus />
               Add Property
@@ -115,79 +550,79 @@ export default async function AgentDashboard() {
           </div>
 
           {/* STATS */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5 mt-8">
+          <div className="mt-7 grid grid-cols-2 gap-3 sm:gap-5 xl:grid-cols-4">
 
             {/* TOTAL */}
-            <div className="bg-white border border-slate-200 rounded-2xl p-5">
+            <div className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
 
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-2">
 
-                <p className="text-sm text-slate-500">
+                <p className="text-xs text-slate-500 sm:text-sm">
                   Total Properties
                 </p>
 
-                <FaBuilding className="text-[#075e3b]" />
+                <FaBuilding className="shrink-0 text-[#075e3b]" />
 
               </div>
 
-              <p className="text-3xl font-bold text-slate-900 mt-3">
+              <p className="mt-3 text-2xl font-bold text-slate-900 sm:text-3xl">
                 {totalProperties}
               </p>
 
             </div>
 
             {/* APPROVED */}
-            <div className="bg-white border border-slate-200 rounded-2xl p-5">
+            <div className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
 
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-2">
 
-                <p className="text-sm text-slate-500">
+                <p className="text-xs text-slate-500 sm:text-sm">
                   Approved
                 </p>
 
-                <FaCheckCircle className="text-green-600" />
+                <FaCheckCircle className="shrink-0 text-green-600" />
 
               </div>
 
-              <p className="text-3xl font-bold text-slate-900 mt-3">
+              <p className="mt-3 text-2xl font-bold text-slate-900 sm:text-3xl">
                 {approvedProperties}
               </p>
 
             </div>
 
             {/* PENDING */}
-            <div className="bg-white border border-slate-200 rounded-2xl p-5">
+            <div className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
 
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-2">
 
-                <p className="text-sm text-slate-500">
+                <p className="text-xs text-slate-500 sm:text-sm">
                   Pending
                 </p>
 
-                <FaClock className="text-yellow-500" />
+                <FaClock className="shrink-0 text-yellow-500" />
 
               </div>
 
-              <p className="text-3xl font-bold text-slate-900 mt-3">
+              <p className="mt-3 text-2xl font-bold text-slate-900 sm:text-3xl">
                 {pendingProperties}
               </p>
 
             </div>
 
             {/* ENQUIRIES */}
-            <div className="bg-white border border-slate-200 rounded-2xl p-5">
+            <div className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
 
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-2">
 
-                <p className="text-sm text-slate-500">
+                <p className="text-xs text-slate-500 sm:text-sm">
                   Enquiries
                 </p>
 
-                <FaEnvelope className="text-[#075e3b]" />
+                <FaEnvelope className="shrink-0 text-[#075e3b]" />
 
               </div>
 
-              <p className="text-3xl font-bold text-slate-900 mt-3">
+              <p className="mt-3 text-2xl font-bold text-slate-900 sm:text-3xl">
                 0
               </p>
 
@@ -196,17 +631,17 @@ export default async function AgentDashboard() {
           </div>
 
           {/* PROPERTY MANAGEMENT */}
-          <div className="mt-10">
+          <div className="mt-8 sm:mt-10">
 
-            <div className="flex items-center justify-between mb-5">
+            <div className="mb-5 flex items-center justify-between gap-3">
 
-              <div>
+              <div className="min-w-0">
 
-                <h2 className="text-xl font-bold text-slate-900">
+                <h2 className="text-lg font-bold text-slate-900 sm:text-xl">
                   My Properties
                 </h2>
 
-                <p className="text-sm text-slate-500 mt-1">
+                <p className="mt-1 text-xs text-slate-500 sm:text-sm">
                   Manage your current accommodation listings.
                 </p>
 
@@ -214,7 +649,7 @@ export default async function AgentDashboard() {
 
               <Link
                 href="/dashboard/agent/properties"
-                className="hidden sm:flex items-center gap-2 text-sm font-semibold text-[#075e3b] hover:text-[#064d31]"
+                className="hidden shrink-0 items-center gap-2 text-sm font-semibold text-[#075e3b] hover:text-[#064d31] sm:flex"
               >
                 View all
                 <FaArrowRight className="text-xs" />
@@ -223,33 +658,33 @@ export default async function AgentDashboard() {
             </div>
 
             {/* PROPERTY TABLE */}
-            <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
+            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
 
               <div className="overflow-x-auto">
 
-                <table className="w-full text-sm">
+                <table className="w-full min-w-[650px] text-sm">
 
-                  <thead className="bg-slate-50 border-b border-slate-200">
+                  <thead className="border-b border-slate-200 bg-slate-50">
 
                     <tr>
 
-                      <th className="text-left px-6 py-4 font-semibold text-slate-600">
+                      <th className="px-5 py-4 text-left font-semibold text-slate-600 sm:px-6">
                         Property
                       </th>
 
-                      <th className="text-left px-6 py-4 font-semibold text-slate-600">
+                      <th className="px-5 py-4 text-left font-semibold text-slate-600 sm:px-6">
                         Location
                       </th>
 
-                      <th className="text-left px-6 py-4 font-semibold text-slate-600">
+                      <th className="px-5 py-4 text-left font-semibold text-slate-600 sm:px-6">
                         Price
                       </th>
 
-                      <th className="text-left px-6 py-4 font-semibold text-slate-600">
+                      <th className="px-5 py-4 text-left font-semibold text-slate-600 sm:px-6">
                         Status
                       </th>
 
-                      <th className="text-right px-6 py-4 font-semibold text-slate-600">
+                      <th className="px-5 py-4 text-right font-semibold text-slate-600 sm:px-6">
                         Action
                       </th>
 
@@ -270,22 +705,22 @@ export default async function AgentDashboard() {
 
                           <div className="flex flex-col items-center">
 
-                            <div className="w-14 h-14 rounded-full bg-[#075e3b]/10 flex items-center justify-center text-[#075e3b]">
+                            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[#075e3b]/10 text-[#075e3b]">
                               <FaBuilding className="text-xl" />
                             </div>
 
-                            <h3 className="font-bold text-slate-800 mt-4">
+                            <h3 className="mt-4 font-bold text-slate-800">
                               No properties yet
                             </h3>
 
-                            <p className="text-sm text-slate-500 mt-1 max-w-sm">
+                            <p className="mt-1 max-w-sm text-sm text-slate-500">
                               You haven't added any accommodation listings.
                               Add your first property to get started.
                             </p>
 
                             <Link
                               href="/dashboard/agent/properties/new"
-                              className="mt-5 inline-flex items-center gap-2 bg-[#075e3b] text-white px-5 py-2.5 rounded-lg font-semibold text-sm hover:bg-[#064d31] transition"
+                              className="mt-5 inline-flex items-center gap-2 rounded-lg bg-[#075e3b] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#064d31]"
                             >
                               <FaPlus />
                               Add Property
@@ -306,7 +741,7 @@ export default async function AgentDashboard() {
                           className="border-b border-slate-100 last:border-b-0"
                         >
 
-                          <td className="px-6 py-4">
+                          <td className="px-5 py-4 sm:px-6">
 
                             <div className="font-semibold text-slate-900">
                               {property.name || "Untitled Property"}
@@ -314,15 +749,15 @@ export default async function AgentDashboard() {
 
                           </td>
 
-                          <td className="px-6 py-4 text-slate-500">
+                          <td className="px-5 py-4 text-slate-500 sm:px-6">
                             {property.location || "Not provided"}
                           </td>
 
-                          <td className="px-6 py-4 font-semibold text-slate-900">
+                          <td className="px-5 py-4 font-semibold text-slate-900 sm:px-6">
                             ₦{Number(property.price || 0).toLocaleString()}
                           </td>
 
-                          <td className="px-6 py-4">
+                          <td className="px-5 py-4 sm:px-6">
 
                             <span
                               className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold capitalize ${
@@ -338,7 +773,7 @@ export default async function AgentDashboard() {
 
                           </td>
 
-                          <td className="px-6 py-4 text-right">
+                          <td className="px-5 py-4 text-right sm:px-6">
 
                             <Link
                               href={`/dashboard/agent/properties/${property.id}`}
@@ -361,31 +796,43 @@ export default async function AgentDashboard() {
 
               </div>
 
+              <div className="border-t border-slate-100 p-4 sm:hidden">
+
+                <Link
+                  href="/dashboard/agent/properties"
+                  className="flex items-center justify-center gap-2 text-sm font-semibold text-[#075e3b]"
+                >
+                  View all properties
+                  <FaArrowRight className="text-xs" />
+                </Link>
+
+              </div>
+
             </div>
 
           </div>
 
           {/* QUICK ACTIONS */}
-          <div className="mt-10">
+          <div className="mt-8 sm:mt-10">
 
-            <h2 className="text-xl font-bold text-slate-900">
+            <h2 className="text-lg font-bold text-slate-900 sm:text-xl">
               Quick Actions
             </h2>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 mt-5">
+            <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 sm:gap-5">
 
               <Link
                 href="/dashboard/agent/properties/new"
-                className="bg-white border border-slate-200 rounded-2xl p-5 hover:border-[#075e3b] transition"
+                className="rounded-2xl border border-slate-200 bg-white p-5 transition hover:border-[#075e3b]"
               >
 
-                <FaPlus className="text-[#075e3b] text-xl" />
+                <FaPlus className="text-xl text-[#075e3b]" />
 
-                <h3 className="font-bold text-slate-900 mt-4">
+                <h3 className="mt-4 font-bold text-slate-900">
                   Add Property
                 </h3>
 
-                <p className="text-sm text-slate-500 mt-1">
+                <p className="mt-1 text-sm text-slate-500">
                   Create a new accommodation listing.
                 </p>
 
@@ -393,16 +840,16 @@ export default async function AgentDashboard() {
 
               <Link
                 href="/dashboard/agent/properties"
-                className="bg-white border border-slate-200 rounded-2xl p-5 hover:border-[#075e3b] transition"
+                className="rounded-2xl border border-slate-200 bg-white p-5 transition hover:border-[#075e3b]"
               >
 
-                <FaBuilding className="text-[#075e3b] text-xl" />
+                <FaBuilding className="text-xl text-[#075e3b]" />
 
-                <h3 className="font-bold text-slate-900 mt-4">
+                <h3 className="mt-4 font-bold text-slate-900">
                   Manage Properties
                 </h3>
 
-                <p className="text-sm text-slate-500 mt-1">
+                <p className="mt-1 text-sm text-slate-500">
                   View and manage all your property listings.
                 </p>
 
@@ -410,16 +857,16 @@ export default async function AgentDashboard() {
 
               <Link
                 href="/profile"
-                className="bg-white border border-slate-200 rounded-2xl p-5 hover:border-[#075e3b] transition"
+                className="rounded-2xl border border-slate-200 bg-white p-5 transition hover:border-[#075e3b] sm:col-span-2 xl:col-span-1"
               >
 
-                <FaUser className="text-[#075e3b] text-xl" />
+                <FaUser className="text-xl text-[#075e3b]" />
 
-                <h3 className="font-bold text-slate-900 mt-4">
+                <h3 className="mt-4 font-bold text-slate-900">
                   Edit Profile
                 </h3>
 
-                <p className="text-sm text-slate-500 mt-1">
+                <p className="mt-1 text-sm text-slate-500">
                   Update your account information.
                 </p>
 
@@ -436,3 +883,4 @@ export default async function AgentDashboard() {
     </main>
   )
 }
+
