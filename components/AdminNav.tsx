@@ -157,7 +157,7 @@ export default function AdminNav() {
             href="/"
             className="whitespace-nowrap text-xl font-bold text-[#075e3b]"
           >
-            {collapsed ? "N" : "NSUK Nest"}
+            {collapsed ? "" : "NSUK Nest"}
           </Link>
 
           <button
@@ -168,9 +168,9 @@ export default function AdminNav() {
             className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-[#075e3b]"
           >
             {collapsed ? (
-              <GoSidebarExpand size={20} />
+              < GoSidebarCollapse size={20} />
             ) : (
-              <GoSidebarCollapse size={20} />
+              <GoSidebarExpand size={20} />
             )}
           </button>
         </div>
