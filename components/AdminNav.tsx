@@ -27,51 +27,15 @@ export default function AdminNav() {
   const [mobileOpen, setMobileOpen] = useState(false)
 
   const items = [
-    {
-      label: "Overview",
-      href: "/dashboard/admin",
-      icon: FaHome,
-    },
-    {
-      label: "Users",
-      href: "/dashboard/admin/users",
-      icon: FaUsers,
-    },
-    {
-      label: "Students",
-      href: "/dashboard/admin/students",
-      icon: FaUserGraduate,
-    },
-    {
-      label: "Agents / Owners",
-      href: "/dashboard/admin/agents",
-      icon: FaUserShield,
-    },
-    {
-      label: "Properties",
-      href: "/dashboard/admin/properties",
-      icon: FaBuilding,
-    },
-    {
-      label: "Pending Approvals",
-      href: "/dashboard/admin/approvals",
-      icon: FaCheckCircle,
-    },
-    {
-      label: "Payments",
-      href: "#",
-      icon: FaMoneyBillWave,
-    },
-    {
-      label: "Reports",
-      href: "#",
-      icon: FaChartBar,
-    },
-    {
-      label: "Settings",
-      href: "#",
-      icon: FaCog,
-    },
+    { label: "Overview", href: "/dashboard/admin", icon: FaHome },
+    { label: "Users", href: "/dashboard/admin/users", icon: FaUsers },
+    { label: "Students", href: "/dashboard/admin/students", icon: FaUserGraduate },
+    { label: "Agents / Owners", href: "/dashboard/admin/agents", icon: FaUserShield },
+    { label: "Properties", href: "/dashboard/admin/properties", icon: FaBuilding },
+    { label: "Pending Approvals", href: "/dashboard/admin/approvals", icon: FaCheckCircle },
+    { label: "Payments", href: "#", icon: FaMoneyBillWave },
+    { label: "Reports", href: "#", icon: FaChartBar },
+    { label: "Settings", href: "#", icon: FaCog },
   ]
 
   const navigation = (
@@ -100,7 +64,6 @@ export default function AdminNav() {
             }`}
           >
             <Icon className="shrink-0 text-lg" />
-
             <span className={collapsed ? "lg:hidden" : ""}>
               {item.label}
             </span>
@@ -116,7 +79,6 @@ export default function AdminNav() {
         <p className="text-sm font-semibold text-slate-800">
           Administrator
         </p>
-
         <p className="text-xs text-slate-500 mt-1">
           Manage NSUK Nest from here.
         </p>
@@ -128,10 +90,7 @@ export default function AdminNav() {
     <>
       {/* MOBILE HEADER */}
       <header className="fixed top-0 left-0 right-0 z-40 flex h-16 items-center justify-between border-b border-slate-200 bg-white px-4 lg:hidden">
-        <Link
-          href="/"
-          className="text-xl font-bold text-[#075e3b]"
-        >
+        <Link href="/" className="text-xl font-bold text-[#075e3b]">
           NSUK Nest
         </Link>
 
@@ -141,11 +100,7 @@ export default function AdminNav() {
           aria-label={mobileOpen ? "Close menu" : "Open menu"}
           className="flex h-10 w-10 items-center justify-center rounded-lg text-slate-700 hover:bg-slate-100"
         >
-          {mobileOpen ? (
-            <FiX size={24} />
-          ) : (
-            <FiMenu size={24} />
-          )}
+          {mobileOpen ? <FiX size={24} /> : <FiMenu size={24} />}
         </button>
       </header>
 
@@ -192,10 +147,10 @@ export default function AdminNav() {
           collapsed ? "w-[76px]" : "w-64"
         }`}
       >
-        {/* LOGO */}
+        {/* LOGO AND COLLAPSE BUTTON */}
         <div
-          className={`flex h-20 items-center border-b border-slate-100 ${
-            collapsed ? "justify-center px-2" : "px-6"
+          className={`flex h-20 shrink-0 items-center border-b border-slate-100 ${
+            collapsed ? "justify-center px-2" : "justify-between px-5"
           }`}
         >
           <Link
@@ -204,20 +159,13 @@ export default function AdminNav() {
           >
             {collapsed ? "N" : "NSUK Nest"}
           </Link>
-        </div>
 
-        {/* COLLAPSE BUTTON */}
-        <div
-          className={`flex border-b border-slate-100 py-3 ${
-            collapsed ? "justify-center px-2" : "justify-end px-4"
-          }`}
-        >
           <button
             type="button"
             onClick={() => setCollapsed(!collapsed)}
             aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
             title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-            className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-[#075e3b]"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-[#075e3b]"
           >
             {collapsed ? (
               <GoSidebarExpand size={20} />
@@ -228,7 +176,6 @@ export default function AdminNav() {
         </div>
 
         {navigation}
-
         {!collapsed && adminInfo}
       </aside>
     </>
