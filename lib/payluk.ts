@@ -1,3 +1,4 @@
+
 import "server-only";
 
 import {
@@ -258,10 +259,6 @@ export async function paylukRequest<T>(
 
   const safeDetails = getSafeErrorDetails(body);
 
-  /*
-   * HTTP-level failure.
-   * The HTTP status comes directly from the Response object.
-   */
   if (!response.ok || !body) {
     const message =
       safeDetails.message ||
@@ -289,10 +286,6 @@ export async function paylukRequest<T>(
     );
   }
 
-  /*
-   * Some APIs return HTTP 200 but report a failure
-   * in the response body's status field.
-   */
   if (
     typeof body.status === "number" &&
     body.status >= 400
@@ -483,19 +476,30 @@ export async function setPaylukCustomerPermissions(
 
 /**
  * Reuse an existing Payluk customer or create one.
+ *
+ * Existing customer IDs are also checked for the required permissions.
  */
 export async function ensurePaylukCustomer(
   input: EnsurePaylukCustomerInput
 ): Promise<string> {
+  let customer: PaylukCustomer | null = null;
+
   if (input.existingCustomerId?.trim()) {
-    return input.existingCustomerId.trim();
+    const customerId = input.existingCustomerId.trim();
+
+    await setPaylukCustomerPermissions(
+      customerId,
+      input.permissions
+    );
+
+    return customerId;
   }
 
   const existing = await findPaylukCustomerByEmail(
     input.email
   );
 
-  let customer = existing;
+  customer = existing;
 
   if (!customer) {
     customer = await createPaylukCustomer({
@@ -537,6 +541,7 @@ export async function ensurePaylukCustomer(
  * Synchronize a booking with Payluk's server-side escrow status.
  *
  * A browser checkout callback alone must never unlock agent contact.
+ * Only a recognized funded escrow status unlocks contact.
  */
 export async function syncBookingFromEscrow(
   bookingRef: DocumentReference,
@@ -592,21 +597,19 @@ export async function syncBookingFromEscrow(
       ...common,
       status: "disputed",
       paymentStatus: "paid",
-      contactUnlocked: true,
+      contactUnlocked: false,
     });
 
     return {
       status: "disputed",
       paymentStatus: "paid",
-      contactUnlocked: true,
+      contactUnlocked: false,
     };
   }
 
   if (
     paylukStatus === "COMPLETED" ||
-    paylukStatus === "CLAIMED" ||
-    (paylukState === "CLOSED" &&
-      paylukStatus !== "REFUNDED")
+    paylukStatus === "CLAIMED"
   ) {
     await bookingRef.update({
       ...common,
@@ -623,10 +626,7 @@ export async function syncBookingFromEscrow(
     };
   }
 
-  if (
-    paylukState === "OPENED" ||
-    paylukStatus === "ONGOING"
-  ) {
+  if (paylukStatus === "ONGOING") {
     await bookingRef.update({
       ...common,
       status: "inspection_pending",

@@ -30,15 +30,19 @@ function verifySignature(
   signature: string,
   secret: string
 ): boolean {
+  const normalizedSignature = signature
+    .trim()
+    .replace(/^sha512=/i, "");
+
+  if (!/^[a-f0-9]{128}$/i.test(normalizedSignature)) {
+    return false;
+  }
+
   const expected = createHmac("sha512", secret)
     .update(rawBody)
     .digest();
 
-  if (!/^[a-f0-9]{128}$/i.test(signature)) {
-    return false;
-  }
-
-  const received = Buffer.from(signature, "hex");
+  const received = Buffer.from(normalizedSignature, "hex");
 
   return (
     received.length === expected.length &&
@@ -90,9 +94,14 @@ export async function POST(request: Request) {
       );
     }
 
-    // This endpoint handles escrow events only.
-    // Other Payluk event types are acknowledged and ignored.
-    if (!payload.event.startsWith("escrow.")) {
+    const event = payload.event.toLowerCase();
+
+    // Handle both Payluk escrow event formats.
+    const isEscrowEvent =
+      event.startsWith("escrow.") ||
+      event.startsWith("payment.escrow.");
+
+    if (!isEscrowEvent) {
       return NextResponse.json({ received: true });
     }
 
@@ -107,33 +116,45 @@ export async function POST(request: Request) {
     }
 
     const bookings = adminDb.collection("bookings");
-    let bookingSnapshot;
 
+    let bookingSnapshot = null;
+
+    // First, look up the booking using its Payluk payment token.
     if (paymentToken) {
       bookingSnapshot = await bookings
         .where("paylukPaymentToken", "==", paymentToken)
         .limit(1)
         .get();
-    } else {
+    }
+
+    // If the token lookup fails, try the escrow ID.
+    if ((!bookingSnapshot || bookingSnapshot.empty) && escrowId) {
       bookingSnapshot = await bookings
         .where("paylukEscrowId", "==", escrowId)
         .limit(1)
         .get();
     }
 
-    if (bookingSnapshot.empty) {
+    if (!bookingSnapshot || bookingSnapshot.empty) {
       console.warn(
         "No NSUK Nest booking matched the Payluk escrow webhook."
       );
 
-      // The webhook may arrive before the booking has been linked.
-      // Acknowledge it; the verification API can reconcile later.
       return NextResponse.json({ received: true });
     }
 
     const bookingDocument = bookingSnapshot.docs[0];
     const booking = bookingDocument.data();
 
+    // Do not process bookings belonging to another payment provider.
+    if (booking.paymentProvider !== "payluk") {
+      return NextResponse.json(
+        { error: "Booking does not use Payluk." },
+        { status: 409 }
+      );
+    }
+
+    // Confirm that the webhook escrow ID matches the booking.
     if (
       escrowId &&
       booking.paylukEscrowId &&
@@ -155,14 +176,15 @@ export async function POST(request: Request) {
       );
     }
 
-    // Confirm the current escrow status directly with Payluk.
+    // Never trust the webhook payload alone.
+    // Verify the current escrow status directly with Payluk.
     const escrow = await paylukRequest<PaylukEscrow>(
       `/v1/escrow/verify/${encodeURIComponent(
         verificationToken
       )}`
     );
 
-    // Update the booking only from Payluk's verified status.
+    // Synchronize the booking using Payluk's verified response.
     await syncBookingFromEscrow(
       bookingDocument.ref,
       escrow

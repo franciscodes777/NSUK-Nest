@@ -3,68 +3,25 @@
 import { auth } from "@/auth";
 import { adminDb } from "@/lib/firebaseAdmin";
 import { FieldValue } from "firebase-admin/firestore";
-import { pandascrowRequest } from "@/lib/pandascrow";
+import {
+  ensurePaylukCustomer,
+  paylukRequest,
+} from "@/lib/payluk";
 
-type JsonRecord = Record<string, unknown>;
-
-type PandascrowPartyDetails = {
-  name: string;
-  email: string;
-  phone: string;
-};
-
-type PandascrowEscrowData = {
-  _id?: string | number;
-  id?: string | number;
+type PaylukEscrow = {
+  id?: string;
+  amount?: number;
+  purpose?: string;
+  paymentToken?: string;
   status?: string;
-  escrow_type?: string;
+  state?: string;
+  paidAt?: string | number | null;
+  paymentDetails?: {
+    status?: string;
+    reference?: string;
+  } | null;
 };
 
-type PandascrowTransactionData = {
-  transaction_ref?: string;
-  reference?: string;
-  payment_url?: string;
-};
-
-type PandascrowPaymentData = {
-  method?: string;
-  payment_url?: string | null;
-  reference?: string;
-  provider?: string;
-  virtual_account?: JsonRecord | null;
-};
-
-type PandascrowInitializationData = {
-  escrow_id?: string | number;
-  id?: string | number;
-  escrow_data?: PandascrowEscrowData;
-  transaction?: PandascrowTransactionData;
-  payment?: PandascrowPaymentData;
-  payment_url?: string | null;
-  virtual_account?: JsonRecord | null;
-  status?: boolean | number | string;
-  message?: string;
-};
-
-type PandascrowInitializationResponse =
-  PandascrowInitializationData & {
-    data?: PandascrowInitializationData;
-  };
-
-type PaymentGateway = "payment_link" | "virtual_account";
-
-function isRecord(value: unknown): value is JsonRecord {
-  return (
-    value !== null &&
-    typeof value === "object" &&
-    !Array.isArray(value)
-  );
-}
-
-/**
- * Normalize Nigerian phone numbers while allowing
- * international numbers that are already in +country-code format.
- */
 function normalizePhone(
   value: unknown,
   label: string
@@ -78,103 +35,62 @@ function normalizePhone(
 
   if (!raw) {
     throw new Error(
-      `${label} phone number is required for the escrow transaction.`
+      `${label} phone number is required for Payluk.`
     );
   }
 
   const digits = raw.replace(/\D/g, "");
 
   if (
-    raw.startsWith("+") &&
-    digits.length >= 8 &&
-    digits.length <= 15
+    digits.length < 10 ||
+    digits.length > 15
   ) {
-    return `+${digits}`;
+    throw new Error(
+      `The ${label.toLowerCase()} phone number is invalid. Update the profile and try again.`
+    );
   }
 
-  if (
-    digits.startsWith("234") &&
-    digits.length === 13
-  ) {
-    return `+${digits}`;
-  }
-
-  if (
-    digits.startsWith("0") &&
-    digits.length === 11
-  ) {
-    return `+234${digits.slice(1)}`;
-  }
-
-  if (digits.length === 10) {
-    return `+234${digits}`;
-  }
-
-  throw new Error(
-    `The ${label.toLowerCase()} phone number is invalid. Update the profile and try again.`
-  );
+  return digits;
 }
 
-function getPositiveInteger(
-  envName: string,
-  defaultValue: number,
-  minimum: number,
-  maximum: number
-): number {
-  const configuredValue = process.env[envName]?.trim();
+function getInspectionDays(): number {
+  const configuredValue =
+    process.env.PAYLUK_INSPECTION_DAYS?.trim();
 
-  const value = configuredValue
+  const days = configuredValue
     ? Number(configuredValue)
-    : defaultValue;
+    : 7;
 
   if (
-    !Number.isInteger(value) ||
-    value < minimum ||
-    value > maximum
+    !Number.isInteger(days) ||
+    days < 1 ||
+    days > 365
   ) {
     throw new Error(
-      `${envName} must be a whole number between ${minimum} and ${maximum}.`
+      "PAYLUK_INSPECTION_DAYS must be a whole number between 1 and 365."
     );
   }
 
-  return value;
-}
-
-function getPaymentGateway(): PaymentGateway {
-  const configuredValue = (
-    process.env.PANDASCROW_PAYMENT_GATEWAY?.trim() ||
-    "virtual_account"
-  ).toLowerCase();
-
-  if (
-    configuredValue !== "payment_link" &&
-    configuredValue !== "virtual_account"
-  ) {
-    throw new Error(
-      "PANDASCROW_PAYMENT_GATEWAY must be payment_link or virtual_account."
-    );
-  }
-
-  return configuredValue;
+  return days;
 }
 
 function getWhoPaysFees(): "buyer" | "seller" | "both" {
-  const configuredValue = (
-    process.env.PANDASCROW_WHO_PAY_FEES?.trim() ||
+  const value = (
+    process.env.PAYLUK_WHO_PAYS_FEES?.trim() ||
     "both"
   ).toLowerCase();
 
   if (
-    configuredValue !== "buyer" &&
-    configuredValue !== "seller" &&
-    configuredValue !== "both"
+    value !== "buyer" &&
+    value !== "seller" &&
+    value !== "both"
   ) {
     throw new Error(
-      "PANDASCROW_WHO_PAY_FEES must be buyer, seller, or both."
+      "PAYLUK_WHO_PAYS_FEES must be buyer, seller, or both."
     );
   }
 
-  return configuredValue;
+  return value;
 }
 
 export async function createBooking(propertyId: string) {
@@ -191,35 +107,21 @@ export async function createBooking(propertyId: string) {
   }
 
   if (
-    !propertyId ||
     typeof propertyId !== "string" ||
     !propertyId.trim()
   ) {
     throw new Error("A valid property is required.");
   }
 
-  /*
-   * Pandascrow account configuration.
-   *
-   * This UUID identifies the Pandascrow account operating
-   * NSUK Nest's broker escrow transactions. It is not the
-   * student's Firebase ID or an API secret.
-   */
-  const pandascrowAccountUuid =
-    process.env.PANDASCROW_ACCOUNT_UUID?.trim();
-
-  if (!pandascrowAccountUuid) {
-    throw new Error(
-      "PANDASCROW_ACCOUNT_UUID is not configured. Add your Pandascrow account UUID to the server environment."
-    );
-  }
+  const normalizedStudentEmail =
+    session.user.email.trim().toLowerCase();
 
   /*
-   * Check the student account in Firestore.
+   * Find the student's Firestore account.
    */
   const studentSnapshot = await adminDb
     .collection("users")
-    .where("email", "==", session.user.email)
+    .where("email", "==", normalizedStudentEmail)
     .limit(1)
     .get();
 
@@ -227,15 +129,15 @@ export async function createBooking(propertyId: string) {
     throw new Error("Student account not found.");
   }
 
-  const student = studentSnapshot.docs[0];
-  const studentData = student.data();
+  const studentDocument = studentSnapshot.docs[0];
+  const studentData = studentDocument.data();
 
   /*
-   * Find the selected property.
+   * Find the selected accommodation.
    */
   const propertyRef = adminDb
     .collection("properties")
-    .doc(propertyId);
+    .doc(propertyId.trim());
 
   const propertySnapshot = await propertyRef.get();
 
@@ -255,17 +157,18 @@ export async function createBooking(propertyId: string) {
 
   if (
     !Number.isFinite(rentAmount) ||
-    rentAmount <= 0
+    rentAmount < 1000
   ) {
     throw new Error(
-      "This property's rent amount is invalid."
+      "The accommodation rent must be at least ₦1,000 to create a Payluk escrow."
     );
   }
 
   if (
     property.agentEmail &&
-    String(property.agentEmail).trim().toLowerCase() ===
-      session.user.email.trim().toLowerCase()
+    String(property.agentEmail)
+      .trim()
+      .toLowerCase() === normalizedStudentEmail
   ) {
     throw new Error(
       "You cannot book your own accommodation listing."
@@ -273,43 +176,13 @@ export async function createBooking(propertyId: string) {
   }
 
   /*
-   * Read the escrow configuration.
-   *
-   * This remains a one-time escrow: one rent payment,
-   * held subject to the agreed inspection and dispute terms.
+   * Inspection and escrow configuration.
    */
-  const inspectionDays = getPositiveInteger(
-    "PANDASCROW_INSPECTION_DAYS",
-    7,
-    1,
-    90
-  );
-
-  const disputeWindowDays = getPositiveInteger(
-    "PANDASCROW_DISPUTE_WINDOW_DAYS",
-    7,
-    1,
-    90
-  );
-
-  const paymentGateway = getPaymentGateway();
-  const whoPaysFees = getWhoPaysFees();
-
-  const expiryHours =
-    paymentGateway === "virtual_account"
-      ? getPositiveInteger(
-          "PANDASCROW_DVA_EXPIRY_HOURS",
-          24,
-          1,
-          24
-        )
-      : undefined;
+  const inspectionDays = getInspectionDays();
+  const whoPays = getWhoPaysFees();
 
   /*
-   * Look up the accommodation owner.
-   *
-   * Properties created through the agent dashboard store
-   * agentId and agentEmail.
+   * Find the accommodation provider.
    */
   let agentSnapshot:
     | FirebaseFirestore.DocumentSnapshot
@@ -339,7 +212,7 @@ export async function createBooking(propertyId: string) {
       .where(
         "email",
         "==",
-        property.agentEmail.trim()
+        property.agentEmail.trim().toLowerCase()
       )
       .limit(1)
       .get();
@@ -351,16 +224,15 @@ export async function createBooking(propertyId: string) {
 
   if (!agentSnapshot?.exists) {
     throw new Error(
-      "The property owner's account could not be found. Please contact support."
+      "The accommodation provider's account could not be found. Please contact support."
     );
   }
 
-  const agent = agentSnapshot;
-  const agentData = agent.data();
+  const agentData = agentSnapshot.data();
 
   if (!agentData) {
     throw new Error(
-      "The property owner's profile could not be loaded."
+      "The accommodation provider's profile could not be loaded."
     );
   }
 
@@ -371,10 +243,10 @@ export async function createBooking(propertyId: string) {
   }
 
   /*
-   * Normalize participant information.
+   * Prepare buyer and seller information.
    */
   const studentEmail = String(
-    studentData.email || session.user.email
+    studentData.email || normalizedStudentEmail
   )
     .trim()
     .toLowerCase();
@@ -387,7 +259,7 @@ export async function createBooking(propertyId: string) {
 
   if (!studentEmail || !agentEmail) {
     throw new Error(
-      "The student or property owner's email address is missing."
+      "The student or accommodation provider's email address is missing."
     );
   }
 
@@ -410,281 +282,200 @@ export async function createBooking(propertyId: string) {
 
   const agentPhone = normalizePhone(
     agentData.phone || property.agentPhone,
-    "Property owner's"
+    "Accommodation provider"
   );
 
-  const buyerDetails: PandascrowPartyDetails = {
-    name: studentName,
+  /*
+   * Find or register the student as a Payluk buyer.
+   *
+   * Buyer permissions:
+   * canBuy = true
+   * canSell = false
+   */
+  const buyerCustomerId = await ensurePaylukCustomer({
     email: studentEmail,
+    name: studentName,
     phone: studentPhone,
-  };
-
-  const sellerDetails: PandascrowPartyDetails = {
-    name: agentName,
-    email: agentEmail,
-    phone: agentPhone,
-  };
+    existingCustomerId:
+      typeof studentData.paylukCustomerId === "string"
+        ? studentData.paylukCustomerId
+        : null,
+    permissions: {
+      canBuy: true,
+      canSell: false,
+    },
+  });
 
   /*
-   * Reserve a Firestore booking ID before calling Pandascrow.
+   * Find or register the accommodation provider as
+   * a Payluk seller.
+   *
+   * Seller permissions:
+   * canBuy = false
+   * canSell = true
+   */
+  const sellerCustomerId = await ensurePaylukCustomer({
+    email: agentEmail,
+    name: agentName,
+    phone: agentPhone,
+    existingCustomerId:
+      typeof agentData.paylukCustomerId === "string"
+        ? agentData.paylukCustomerId
+        : null,
+    permissions: {
+      canBuy: false,
+      canSell: true,
+    },
+  });
+
+  /*
+   * Save Payluk customer IDs to Firestore.
+   */
+  await Promise.all([
+    studentDocument.ref.update({
+      paylukCustomerId: buyerCustomerId,
+      updatedAt: FieldValue.serverTimestamp(),
+    }),
+
+    agentSnapshot.ref.update({
+      paylukCustomerId: sellerCustomerId,
+      updatedAt: FieldValue.serverTimestamp(),
+    }),
+  ]);
+
+  /*
+   * Reserve a booking reference before creating escrow.
    */
   const bookingRef = adminDb
     .collection("bookings")
     .doc();
 
-  /*
-   * Pandascrow requires an expected delivery date.
-   * Since this action does not receive a separate check-in
-   * date, use the end of the configured inspection period.
-   */
-  const deliveryDate = new Date(
-    Date.now() + inspectionDays * 24 * 60 * 60 * 1000
-  )
-    .toISOString()
-    .slice(0, 10);
-
   const propertyName = String(
     property.name || "Student Accommodation"
   ).trim();
 
-  const title =
-    `NSUK Nest Rental: ${propertyName}`.slice(0, 120);
+  const propertyLocation = String(
+    property.location || ""
+  ).trim();
 
-  const description =
-    `Rental payment for ${propertyName}. ` +
-    `NSUK Nest booking reference: ${bookingRef.id}. ` +
-    `The transaction is subject to the agreed rental, ` +
-    `inspection, acceptance, and dispute terms.`;
-
-  const acceptanceCriteria =
-    "The student must be able to inspect the booked " +
-    "accommodation and verify that it corresponds to the " +
-    "approved listing and agreed rental terms. Funds must " +
-    "remain subject to the escrow provider's applicable " +
-    "acceptance, release, refund, and dispute procedures.";
+  const propertyAddress = String(
+    property.address || ""
+  ).trim();
 
   /*
-   * Build the one-time escrow request.
+   * Create Payluk escrow.
    *
-   * NSUK Nest initiates the transaction in the broker role.
-   * Buyer and seller details identify the student and agent.
-   * receiver_id is null because this integration does not
-   * currently store a Pandascrow user UUID for each agent.
-   *
-   * Do not add partner_id unless Pandascrow has assigned
-   * an integration-partner UUID to your account.
+   * Payluk requires multipart/form-data.
+   * The seller is identified using customer-id.
    */
-  const escrowRequest: JsonRecord = {
-    uuid: pandascrowAccountUuid,
+  const escrowForm = new FormData();
 
-    escrow_type: "onetime",
+  escrowForm.append(
+    "amount",
+    rentAmount.toFixed(2)
+  );
 
-    initiator_role: "broker",
-    initiator_id: pandascrowAccountUuid,
-    receiver_id: null,
+  escrowForm.append(
+    "purpose",
+    `NSUK Nest Rental: ${propertyName}`.slice(0, 120)
+  );
 
-    title,
-    currency: "NGN",
-    description,
+  escrowForm.append(
+    "description",
+    [
+      `Accommodation rental for ${propertyName}.`,
+      `NSUK Nest booking reference: ${bookingRef.id}.`,
+      `Location: ${propertyLocation}.`,
+      `Inspection period: ${inspectionDays} days.`,
+      "Subject to the agreed rental and escrow terms.",
+    ].join(" ")
+  );
 
-    acceptance_criteria: acceptanceCriteria,
-
-    inspection_period: String(inspectionDays),
-    no_reviews: "1",
-    delivery_date: deliveryDate,
-
-    how_dispute_is_handled: "platform",
-    who_pay_fees: whoPaysFees,
-
-    amount: rentAmount,
-
-    dispute_window: String(disputeWindowDays),
-    prd_url: "",
-
-    buyer_details: buyerDetails,
-    seller_details: sellerDetails,
-
-    payment_gateway: paymentGateway,
-
-    ...(expiryHours !== undefined
-      ? { expiry_hours: expiryHours }
-      : {}),
-
-    ...(process.env.PANDASCROW_CALLBACK_URL?.trim()
-      ? {
-          callback_url:
-            process.env.PANDASCROW_CALLBACK_URL.trim(),
-        }
-      : {}),
-  };
+  escrowForm.append("whoPays", whoPays);
+  escrowForm.append(
+    "maxDelivery",
+    String(inspectionDays)
+  );
+  escrowForm.append("deliveryTimeline", "days");
+  escrowForm.append("totalQuantity", "1");
 
   /*
-   * Create the one-time Pandascrow escrow.
-   *
-   * Do not update the booking to paid based on initialization.
-   * It remains pending until a verified webhook confirms
-   * that the escrow has been funded.
+   * Create the escrow on behalf of the seller.
    */
-  const apiResponse =
-    await pandascrowRequest<PandascrowInitializationResponse>(
-      "/escrow/initialize",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json",
-        },
-        body: JSON.stringify(escrowRequest),
-      }
-    );
+  const escrow = await paylukRequest<PaylukEscrow>(
+    "/v1/escrow/create",
+    {
+      method: "POST",
+      headers: {
+        "customer-id": sellerCustomerId,
+      },
+      body: escrowForm,
+    }
+  );
 
-  /*
-   * Accommodate the documented response's data envelope
-   * and nested escrow/payment response structures.
-   */
-  const responseRoot =
-    apiResponse as unknown as JsonRecord;
+  const escrowId = String(
+    escrow?.id || ""
+  ).trim();
 
-  const firstLevel = isRecord(responseRoot.data)
-    ? responseRoot.data
-    : responseRoot;
+  const paymentToken = String(
+    escrow?.paymentToken || ""
+  ).trim();
 
-  const responseData =
-    isRecord(firstLevel.data)
-      ? firstLevel.data as PandascrowInitializationData
-      : firstLevel as PandascrowInitializationData;
-
-  const escrowData = isRecord(responseData.escrow_data)
-    ? responseData.escrow_data as PandascrowEscrowData
-    : undefined;
-
-  const transactionData = isRecord(
-    responseData.transaction
-  )
-    ? responseData.transaction as PandascrowTransactionData
-    : undefined;
-
-  const paymentData = isRecord(responseData.payment)
-    ? responseData.payment as PandascrowPaymentData
-    : undefined;
-
-  const rawEscrowId =
-    responseData.escrow_id ??
-    escrowData?._id ??
-    escrowData?.id;
-
-  if (
-    rawEscrowId === undefined ||
-    rawEscrowId === null ||
-    String(rawEscrowId).trim() === ""
-  ) {
+  if (!escrowId || !paymentToken) {
     throw new Error(
-      "Pandascrow did not return an escrow identifier. Check the API response before retrying to avoid creating duplicate transactions."
+      "Payluk did not return the required escrow ID and payment token. Check your Payluk dashboard before attempting another booking."
     );
   }
 
-  const escrowId = String(rawEscrowId);
-
-  const paymentUrl = String(
-    paymentData?.payment_url ||
-      responseData.payment_url ||
-      transactionData?.payment_url ||
-      ""
-  ).trim() || null;
-
-  const paymentReference = String(
-    paymentData?.reference ||
-      transactionData?.transaction_ref ||
-      transactionData?.reference ||
-      ""
-  ).trim() || null;
-
-  const virtualAccountCandidate =
-    paymentData?.virtual_account ??
-    responseData.virtual_account ??
-    null;
-
-  const virtualAccount = isRecord(
-    virtualAccountCandidate
-  )
-    ? virtualAccountCandidate
-    : null;
-
   /*
-   * Verify that the response includes instructions the
-   * student can actually use to complete the payment.
-   */
-  if (
-    paymentGateway === "payment_link" &&
-    !paymentUrl
-  ) {
-    throw new Error(
-      "Pandascrow initialized the escrow but did not return a payment link. Check your Pandascrow dashboard before retrying."
-    );
-  }
-
-  if (
-    paymentGateway === "virtual_account" &&
-    !virtualAccount
-  ) {
-    throw new Error(
-      "Pandascrow initialized the escrow but did not return virtual-account details. Check your Pandascrow dashboard before retrying."
-    );
-  }
-
-  const initialEscrowStatus = String(
-    escrowData?.status || "pending"
-  ).trim().toLowerCase();
-
-  /*
-   * Save the booking and its Pandascrow references.
+   * Save the booking.
+   *
+   * Creating an escrow does not mean the student
+   * has paid. The booking remains pending.
    */
   await bookingRef.set({
-    studentId: student.id,
+    studentId: studentDocument.id,
     studentEmail,
     studentName,
 
     propertyId: propertySnapshot.id,
     propertyName,
-    propertyLocation: property.location || "",
-    propertyAddress: property.address || "",
+    propertyLocation,
+    propertyAddress,
 
-    agentId: agent.id,
+    agentId: agentSnapshot.id,
     agentName,
     agentEmail,
 
     rentAmount,
 
-    paymentProvider: "pandascrow",
+    paymentProvider: "payluk",
 
-    pandascrowEscrowId: escrowId,
-    pandascrowAccountUuid:
-      pandascrowAccountUuid,
+    paylukEscrowId: escrowId,
+    paylukPaymentToken: paymentToken,
 
-    pandascrowStatus: initialEscrowStatus,
+    paylukBuyerCustomerId: buyerCustomerId,
+    paylukSellerCustomerId: sellerCustomerId,
 
-    pandascrowTransactionReference:
-      paymentReference,
+    paylukStatus: String(
+      escrow.status || "PENDING"
+    ).toUpperCase(),
 
-    pandascrowPaymentGateway:
-      paymentGateway,
+    paylukState: String(
+      escrow.state || "AWAITING_PAYMENT"
+    ).toUpperCase(),
 
-    pandascrowPaymentUrl:
-      paymentUrl,
+    paylukTransactionReference:
+      escrow.paymentDetails?.reference || null,
 
-    pandascrowPaymentDetails:
-      virtualAccount,
-
-    inspectionPeriodDays:
-      inspectionDays,
-
-    disputeWindowDays:
-      disputeWindowDays,
+    inspectionPeriodDays: inspectionDays,
+    disputeWindowDays: inspectionDays,
 
     paymentStatus: "pending",
     status: "pending_payment",
     bookingStatus: "pending",
     inspectionStatus: "pending",
+
     contactUnlocked: false,
 
     createdAt: FieldValue.serverTimestamp(),
@@ -692,22 +483,15 @@ export async function createBooking(propertyId: string) {
   });
 
   /*
-   * Return the payment instructions to the calling UI.
+   * Return the booking reference.
    *
-   * paymentUrl is populated for payment_link.
-   * paymentDetails contains the virtual-account details
-   * when virtual_account is selected.
+   * The payment page will use the saved Payluk
+   * payment token to launch the checkout SDK.
    */
   return {
     success: true,
     bookingId: bookingRef.id,
-
-    paymentProvider: "pandascrow",
-    paymentGateway,
-
-    paymentUrl,
-    paymentDetails: virtualAccount,
-
-    transactionReference: paymentReference,
+    paymentProvider: "payluk",
+    paymentToken,
   };
 }
