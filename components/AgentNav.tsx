@@ -54,7 +54,7 @@ export default function AgentNav() {
     },
     {
       label: "Payments",
-      href: "#",
+      href: "/dashboard/agent/payments",
       icon: FaClipboardList,
     },
     {

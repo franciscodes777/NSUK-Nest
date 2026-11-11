@@ -3,6 +3,14 @@ import { redirect, notFound } from "next/navigation";
 import { auth } from "@/auth";
 import { adminDb } from "@/lib/firebaseAdmin";
 import PaylukCheckoutButton from "@/components/PaylukCheckoutButton";
+import StudentEscrowPanel from "@/components/StudentEscrowPanel";
+import {
+  ESCROW_BADGE_STYLES,
+  ESCROW_LABELS,
+  formatEscrowDate,
+  getBookingEscrowStatus,
+  toDate,
+} from "@/lib/escrowStatus";
 
 type Props = {
   params: Promise<{
@@ -30,15 +38,16 @@ type BookingData = {
   paylukStatus?: string;
   paylukState?: string;
   paylukTransactionReference?: string | null;
+
+  agentName?: string;
+  escrowStatus?: string;
+  releaseDueAt?: unknown;
+  releasedBy?: string;
+  dispute?: { reason?: string } | null;
+  resolution?: { note?: string } | null;
 };
 
 export const dynamic = "force-dynamic";
-
-function formatStatus(value: string): string {
-  return value
-    .replace(/_/g, " ")
-    .replace(/\b\w/g, (letter) => letter.toUpperCase());
-}
 
 export default async function PaymentPage({
   params,
@@ -92,21 +101,18 @@ export default async function PaymentPage({
     "pending_payment"
   ).toLowerCase();
 
-  const isPaid = [
-    "paid",
-    "completed",
-    "released",
-  ].includes(paymentStatus);
+  const escrowStatus = getBookingEscrowStatus(booking);
+  const releaseDueAt = toDate(booking.releaseDueAt);
 
-  const isRefunded =
-    paymentStatus === "refunded" ||
-    bookingStatus === "refunded";
+  const isPaid =
+    escrowStatus === "held" || escrowStatus === "released";
 
-  const isDisputed =
-    paymentStatus === "disputed" ||
-    bookingStatus === "disputed";
+  const isRefunded = escrowStatus === "refunded";
+
+  const isDisputed = escrowStatus === "disputed";
 
   const isResolved =
+    escrowStatus === "split" ||
     bookingStatus === "resolved" ||
     paymentStatus === "partially_refunded";
 
@@ -240,9 +246,13 @@ export default async function PaymentPage({
           </h2>
 
           <p className="mt-3 text-sm leading-6 text-slate-700">
-            Your accommodation payment is processed through
-            Payluk escrow. Funds remain protected according
-            to the applicable escrow terms.
+            When you pay, NSUK Nest holds your money in
+            Payluk escrow. The agent is only paid after you
+            confirm the accommodation matches the listing, or
+            automatically if you report no problem before the
+            inspection period ends. If something is wrong,
+            report it and an admin will review it before any
+            money moves.
           </p>
 
           <p className="mt-3 text-sm leading-6 text-slate-700">
@@ -261,49 +271,26 @@ export default async function PaymentPage({
             </span>
 
             <span
-              className={`rounded-full px-3 py-1.5 text-sm font-medium ${
-                isPaid
-                  ? "bg-green-100 text-green-700"
-                  : isRefunded
-                    ? "bg-slate-100 text-slate-700"
-                    : isDisputed
-                      ? "bg-red-100 text-red-700"
-                      : "bg-yellow-100 text-yellow-700"
-              }`}
+              className={`rounded-full px-3 py-1.5 text-sm font-medium ${ESCROW_BADGE_STYLES[escrowStatus]}`}
             >
-              {formatStatus(paymentStatus)}
+              {ESCROW_LABELS[escrowStatus]}
             </span>
           </div>
 
-          {isPaid && (
-            <p className="mt-4 text-sm leading-6 text-green-700">
-              Your payment has been confirmed. Follow your
-              booking details for the next steps.
-            </p>
-          )}
+          <StudentEscrowPanel
+            bookingId={bookingId}
+            escrowStatus={escrowStatus}
+            releaseDueAt={
+              releaseDueAt ? releaseDueAt.toISOString() : null
+            }
+            releaseDueLabel={formatEscrowDate(releaseDueAt)}
+            agentName={booking.agentName}
+            disputeReason={booking.dispute?.reason || null}
+            resolutionNote={booking.resolution?.note || null}
+            releasedBy={booking.releasedBy || null}
+          />
 
-          {isRefunded && (
-            <p className="mt-4 text-sm leading-6 text-slate-600">
-              This transaction has been refunded.
-              Contact support if you need assistance.
-            </p>
-          )}
-
-          {isDisputed && (
-            <p className="mt-4 text-sm leading-6 text-red-700">
-              This transaction is under dispute.
-              Please follow the instructions provided by
-              NSUK Nest support.
-            </p>
-          )}
-
-          {isResolved && (
-            <p className="mt-4 text-sm leading-6 text-slate-600">
-              This transaction has been resolved.
-            </p>
-          )}
-
-          {!isPaid && !isRefunded && !isDisputed && (
+          {!isPaid && !isRefunded && !isDisputed && !isResolved && (
             <p className="mt-4 text-sm leading-6 text-slate-600">
               Your payment is awaiting confirmation.
               Complete checkout below and allow time for
@@ -338,11 +325,13 @@ export default async function PaymentPage({
           ) : isPaid ? (
             <div className="rounded-xl bg-green-50 p-5 text-center">
               <p className="font-semibold text-green-700">
-                Payment Confirmed
+                Payment Received
               </p>
 
               <p className="mt-2 text-sm text-green-700">
-                Payluk has confirmed your payment.
+                {escrowStatus === "held"
+                  ? "Payluk has received your payment and it is being held until you confirm."
+                  : "This payment has been completed."}
               </p>
             </div>
           ) : isRefunded ? (

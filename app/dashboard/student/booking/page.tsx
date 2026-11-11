@@ -2,6 +2,15 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { adminDb } from "@/lib/firebaseAdmin";
+import StudentEscrowPanel from "@/components/StudentEscrowPanel";
+import {
+  ESCROW_BADGE_STYLES,
+  ESCROW_LABELS,
+  formatEscrowDate,
+  getBookingEscrowStatus,
+  toDate,
+  type EscrowStatus,
+} from "@/lib/escrowStatus";
 import {
   FaClipboardList,
   FaMapMarkerAlt,
@@ -9,8 +18,6 @@ import {
   FaArrowRight,
   FaHome,
   FaClock,
-  FaCheckCircle,
-  FaTimesCircle,
   FaCreditCard,
 } from "react-icons/fa";
 
@@ -34,6 +41,12 @@ type Booking = {
   paymentStatus?: string;
   bookingStatus?: string;
   inspectionStatus?: string;
+  escrowStatus: EscrowStatus;
+  releaseDueAt: Date | null;
+  agentName?: string;
+  disputeReason?: string | null;
+  resolutionNote?: string | null;
+  releasedBy?: string | null;
   createdAt?: BookingDate;
 };
 
@@ -74,24 +87,6 @@ function formatStatus(status?: string) {
   return status
     .replace(/_/g, " ")
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
-}
-
-function getPaymentStyle(status?: string) {
-  const value = (status || "pending").toLowerCase();
-
-  if (PAID_STATUSES.includes(value)) {
-    return "bg-green-100 text-green-700";
-  }
-
-  if (REFUNDED_STATUSES.includes(value)) {
-    return "bg-slate-100 text-slate-700";
-  }
-
-  if (["disputed", "investigating"].includes(value)) {
-    return "bg-red-100 text-red-700";
-  }
-
-  return "bg-yellow-100 text-yellow-700";
 }
 
 function getBookingStyle(status?: string) {
@@ -172,6 +167,20 @@ export default async function StudentBookingsPage() {
           typeof data.inspectionStatus === "string"
             ? data.inspectionStatus
             : "pending",
+        escrowStatus: getBookingEscrowStatus(data),
+        releaseDueAt: toDate(data.releaseDueAt),
+        agentName:
+          typeof data.agentName === "string" ? data.agentName : undefined,
+        disputeReason:
+          typeof data.dispute?.reason === "string"
+            ? data.dispute.reason
+            : null,
+        resolutionNote:
+          typeof data.resolution?.note === "string"
+            ? data.resolution.note
+            : null,
+        releasedBy:
+          typeof data.releasedBy === "string" ? data.releasedBy : null,
         createdAt: data.createdAt as BookingDate | undefined,
       };
     })
@@ -259,16 +268,10 @@ export default async function StudentBookingsPage() {
                 booking.bookingStatus || "pending"
               ).toLowerCase();
 
-              const paid = PAID_STATUSES.includes(paymentStatus);
-
-              const refunded = REFUNDED_STATUSES.includes(paymentStatus);
-
-              const disputed = [
-                "disputed",
-                "investigating",
-              ].includes(paymentStatus);
+              const paid = booking.escrowStatus !== "awaiting_payment";
 
               const paymentCanContinue =
+                !paid &&
                 canContinuePayment(paymentStatus) &&
                 !["cancelled", "rejected"].includes(bookingStatus);
 
@@ -327,11 +330,11 @@ export default async function StudentBookingsPage() {
                         </span>
 
                         <span
-                          className={`rounded-full px-3 py-1.5 text-xs font-semibold ${getPaymentStyle(
-                            booking.paymentStatus
-                          )}`}
+                          className={`rounded-full px-3 py-1.5 text-xs font-semibold ${
+                            ESCROW_BADGE_STYLES[booking.escrowStatus]
+                          }`}
                         >
-                          {formatStatus(booking.paymentStatus)}
+                          {ESCROW_LABELS[booking.escrowStatus]}
                         </span>
                       </div>
                     </div>
@@ -360,55 +363,21 @@ export default async function StudentBookingsPage() {
                       </div>
                     </div>
 
-                    {/* Payment Information */}
-                    {paid && (
-                      <div className="mt-5 flex items-start gap-3 rounded-xl border border-green-100 bg-green-50 p-4">
-                        <FaCheckCircle className="mt-0.5 shrink-0 text-green-600" />
-
-                        <div>
-                          <p className="text-sm font-semibold text-green-800">
-                            Payment confirmed
-                          </p>
-
-                          <p className="mt-1 text-sm leading-5 text-green-700">
-                            Your payment has been confirmed. Follow your
-                            booking status for the next steps.
-                          </p>
-                        </div>
-                      </div>
-                    )}
-
-                    {refunded && (
-                      <div className="mt-5 flex items-start gap-3 rounded-xl bg-slate-50 p-4">
-                        <FaTimesCircle className="mt-0.5 shrink-0 text-slate-500" />
-
-                        <div>
-                          <p className="text-sm font-semibold text-slate-800">
-                            {paymentStatus === "refunded"
-                              ? "Payment refunded"
-                              : "Partial refund"}
-                          </p>
-
-                          <p className="mt-1 text-sm leading-5 text-slate-600">
-                            Check your booking details or contact support if
-                            you need clarification about this transaction.
-                          </p>
-                        </div>
-                      </div>
-                    )}
-
-                    {disputed && (
-                      <div className="mt-5 rounded-xl border border-red-100 bg-red-50 p-4">
-                        <p className="text-sm font-semibold text-red-800">
-                          Payment under dispute
-                        </p>
-
-                        <p className="mt-1 text-sm leading-5 text-red-700">
-                          Your transaction is under review. Please do not
-                          initiate another payment for this booking.
-                        </p>
-                      </div>
-                    )}
+                    {/* Escrow: hold, confirm, dispute */}
+                    <StudentEscrowPanel
+                      bookingId={booking.id}
+                      escrowStatus={booking.escrowStatus}
+                      releaseDueAt={
+                        booking.releaseDueAt
+                          ? booking.releaseDueAt.toISOString()
+                          : null
+                      }
+                      releaseDueLabel={formatEscrowDate(booking.releaseDueAt)}
+                      agentName={booking.agentName}
+                      disputeReason={booking.disputeReason}
+                      resolutionNote={booking.resolutionNote}
+                      releasedBy={booking.releasedBy}
+                    />
 
                     {/* Actions */}
                     <div className="mt-6 flex flex-col gap-3 border-t border-slate-100 pt-5 sm:flex-row">

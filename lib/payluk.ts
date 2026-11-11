@@ -3,8 +3,13 @@ import "server-only";
 
 import {
   FieldValue,
+  Timestamp,
   type DocumentReference,
 } from "firebase-admin/firestore";
+import {
+  getEscrowStatusFromPayluk,
+  toDate,
+} from "@/lib/escrowStatus";
 
 type PaylukEnvelope<T> = {
   status?: number;
@@ -17,7 +22,7 @@ type PaylukEnvelope<T> = {
   code?: string;
 };
 
-type PaylukEscrow = {
+export type PaylukEscrow = {
   id?: string;
   amount?: number;
   paymentToken?: string;
@@ -538,10 +543,107 @@ export async function ensurePaylukCustomer(
 }
 
 /**
+ * Fetch the current escrow state directly from Payluk.
+ */
+export async function verifyPaylukEscrow(
+  paymentToken: string
+): Promise<PaylukEscrow> {
+  return paylukRequest<PaylukEscrow>(
+    `/v1/escrow/verify/${encodeURIComponent(paymentToken)}`
+  );
+}
+
+/**
+ * Buyer confirms they are satisfied. Payluk releases the held
+ * funds to the seller and closes the escrow (status COMPLETED).
+ *
+ * Only allowed while the escrow is OPENED. Requires a merchant
+ * super-admin secret key.
+ */
+export async function confirmPaylukEscrow(
+  escrowId: string,
+  buyerCustomerId: string
+): Promise<PaylukEscrow> {
+  return paylukRequest<PaylukEscrow>(
+    `/v1/escrow/confirm-payment/${encodeURIComponent(escrowId)}`,
+    {
+      method: "POST",
+      headers: {
+        "customer-id": buyerCustomerId,
+      },
+    }
+  );
+}
+
+/**
+ * Buyer opens a dispute. Funds stay frozen until the merchant
+ * (NSUK Nest admin) resolves it.
+ */
+export async function submitPaylukDispute(
+  paymentToken: string,
+  buyerCustomerId: string,
+  message: string
+): Promise<PaylukEscrow> {
+  const form = new FormData();
+  form.append("message", message);
+
+  return paylukRequest<PaylukEscrow>(
+    `/v1/escrow/submit-dispute/${encodeURIComponent(paymentToken)}`,
+    {
+      method: "POST",
+      headers: {
+        "customer-id": buyerCustomerId,
+      },
+      body: form,
+    }
+  );
+}
+
+/**
+ * Merchant resolves a dispute.
+ *
+ * COMPLETED releases the funds to the seller.
+ * REFUNDED returns the funds to the buyer.
+ */
+export async function resolvePaylukDispute(
+  escrowId: string,
+  outcome: "COMPLETED" | "REFUNDED",
+  resolution: string
+): Promise<PaylukEscrow> {
+  const form = new FormData();
+  form.append("status", outcome);
+  form.append("resolution", resolution);
+
+  return paylukRequest<PaylukEscrow>(
+    `/v1/escrow/dispute/resolve/${encodeURIComponent(escrowId)}`,
+    {
+      method: "POST",
+      body: form,
+    }
+  );
+}
+
+function getDefaultInspectionDays(): number {
+  const days = Number(
+    process.env.PAYLUK_INSPECTION_DAYS?.trim() || 7
+  );
+
+  return Number.isInteger(days) && days >= 1 && days <= 365
+    ? days
+    : 7;
+}
+
+/**
  * Synchronize a booking with Payluk's server-side escrow status.
  *
  * A browser checkout callback alone must never unlock agent contact.
  * Only a recognized funded escrow status unlocks contact.
+ *
+ * When the escrow is first seen as funded, the booking records
+ * when the payment was received and when the held funds will be
+ * released automatically if the student does not respond.
+ * Those dates are only set once, so repeated syncs never extend
+ * the hold.
  */
 export async function syncBookingFromEscrow(
   bookingRef: DocumentReference,
@@ -549,109 +651,130 @@ export async function syncBookingFromEscrow(
 ) {
   const paylukStatus = (escrow.status || "").toUpperCase();
   const paylukState = (escrow.state || "").toUpperCase();
+  const escrowStatus = getEscrowStatusFromPayluk(paylukStatus);
+
+  const existingSnapshot = await bookingRef.get();
+  const existing = existingSnapshot.data() || {};
 
   const common = {
     paylukStatus: paylukStatus || "UNKNOWN",
     paylukState: paylukState || "UNKNOWN",
+    escrowStatus,
     paymentCheckedAt: FieldValue.serverTimestamp(),
     updatedAt: FieldValue.serverTimestamp(),
   };
 
-  if (paylukStatus === "REFUNDED") {
-    await bookingRef.update({
-      ...common,
-      status: "refunded",
-      paymentStatus: "refunded",
-      contactUnlocked: false,
-      refundedAt: FieldValue.serverTimestamp(),
-    });
+  /*
+   * Record the payment time and release deadline the first
+   * time Payluk reports the escrow as funded.
+   */
+  const fundingFields: Record<string, unknown> = {};
 
-    return {
-      status: "refunded",
-      paymentStatus: "refunded",
-      contactUnlocked: false,
-    };
-  }
-
-  if (paylukStatus === "SPLIT") {
-    await bookingRef.update({
-      ...common,
-      status: "resolved",
-      paymentStatus: "partially_refunded",
-      contactUnlocked: false,
-      resolvedAt: FieldValue.serverTimestamp(),
-    });
-
-    return {
-      status: "resolved",
-      paymentStatus: "partially_refunded",
-      contactUnlocked: false,
-    };
+  if (escrowStatus !== "awaiting_payment" && !existing.paidAt) {
+    const paidAt = toDate(escrow.paidAt) || new Date();
+    fundingFields.paidAt = Timestamp.fromDate(paidAt);
   }
 
   if (
-    paylukStatus === "DISPUTED" ||
-    paylukStatus === "INVESTIGATING"
+    escrowStatus !== "awaiting_payment" &&
+    !existing.releaseDueAt
   ) {
-    await bookingRef.update({
-      ...common,
-      status: "disputed",
-      paymentStatus: "paid",
-      contactUnlocked: false,
-    });
+    const paidAt =
+      toDate(existing.paidAt) ||
+      toDate(escrow.paidAt) ||
+      new Date();
 
-    return {
-      status: "disputed",
-      paymentStatus: "paid",
-      contactUnlocked: false,
-    };
+    const days =
+      Number(existing.inspectionPeriodDays) ||
+      getDefaultInspectionDays();
+
+    fundingFields.releaseDueAt = Timestamp.fromMillis(
+      paidAt.getTime() + days * 24 * 60 * 60 * 1000
+    );
   }
 
-  if (
-    paylukStatus === "COMPLETED" ||
-    paylukStatus === "CLAIMED"
-  ) {
-    await bookingRef.update({
-      ...common,
-      status: "completed",
-      paymentStatus: "released",
-      contactUnlocked: true,
-      completedAt: FieldValue.serverTimestamp(),
-    });
+  let fields: Record<string, unknown>;
 
-    return {
-      status: "completed",
-      paymentStatus: "released",
-      contactUnlocked: true,
-    };
-  }
+  switch (escrowStatus) {
+    case "refunded":
+      fields = {
+        status: "refunded",
+        paymentStatus: "refunded",
+        contactUnlocked: false,
+        ...(existing.refundedAt
+          ? {}
+          : { refundedAt: FieldValue.serverTimestamp() }),
+      };
+      break;
 
-  if (paylukStatus === "ONGOING") {
-    await bookingRef.update({
-      ...common,
-      status: "inspection_pending",
-      paymentStatus: "paid",
-      contactUnlocked: true,
-      paidAt: escrow.paidAt || FieldValue.serverTimestamp(),
-    });
+    case "split":
+      fields = {
+        status: "resolved",
+        paymentStatus: "partially_refunded",
+        contactUnlocked: false,
+        ...(existing.resolvedAt
+          ? {}
+          : { resolvedAt: FieldValue.serverTimestamp() }),
+      };
+      break;
 
-    return {
-      status: "inspection_pending",
-      paymentStatus: "paid",
-      contactUnlocked: true,
-    };
+    case "disputed":
+      fields = {
+        status: "disputed",
+        paymentStatus: "paid",
+        inspectionStatus: "disputed",
+        contactUnlocked: false,
+      };
+      break;
+
+    case "released":
+      fields = {
+        status: "completed",
+        paymentStatus: "released",
+        contactUnlocked: true,
+        ...(existing.releasedAt
+          ? {}
+          : { releasedAt: FieldValue.serverTimestamp() }),
+        ...(existing.releasedBy
+          ? {}
+          : {
+              releasedBy:
+                paylukStatus === "CLAIMED"
+                  ? "agent_claim"
+                  : "payluk",
+            }),
+        ...(existing.completedAt
+          ? {}
+          : { completedAt: FieldValue.serverTimestamp() }),
+      };
+      break;
+
+    case "held":
+      fields = {
+        status: "inspection_pending",
+        paymentStatus: "paid",
+        contactUnlocked: true,
+      };
+      break;
+
+    default:
+      fields = {
+        status: "pending_payment",
+        paymentStatus: "pending",
+        contactUnlocked: false,
+      };
   }
 
   await bookingRef.update({
     ...common,
-    status: "pending_payment",
-    paymentStatus: "pending",
-    contactUnlocked: false,
+    ...fundingFields,
+    ...fields,
   });
 
   return {
-    status: "pending_payment",
-    paymentStatus: "pending",
-    contactUnlocked: false,
+    status: fields.status as string,
+    paymentStatus: fields.paymentStatus as string,
+    escrowStatus,
+    contactUnlocked: fields.contactUnlocked as boolean,
   };
 }

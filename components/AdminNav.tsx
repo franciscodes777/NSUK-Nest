@@ -33,7 +33,7 @@ export default function AdminNav() {
     { label: "Agents / Owners", href: "/dashboard/admin/agents", icon: FaUserShield },
     { label: "Properties", href: "/dashboard/admin/properties", icon: FaBuilding },
     { label: "Pending Approvals", href: "/dashboard/admin/approvals", icon: FaCheckCircle },
-    { label: "Payments", href: "#", icon: FaMoneyBillWave },
+    { label: "Payments", href: "/dashboard/admin/payments", icon: FaMoneyBillWave },
     { label: "Reports", href: "#", icon: FaChartBar },
     { label: "Settings", href: "#", icon: FaCog },
   ]
